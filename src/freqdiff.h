@@ -735,7 +735,56 @@ void merge_trees(Tree* tree1, Tree* tree2, taxas_ranges_t* t1_tr, lca_t* t2_lcas
 	delete t2_tr;
 }
 
+// Returns true if node has a marked leaf in subtree
+// Populates is_lca, true if node is lca of marked leaves
+bool mark_lcas(Tree::Node* node, std::vector<bool>* is_marked_leaf, std::vector<bool>* is_lca) {
+	if (is_marked_leaf->at(node->id)) {
+		is_lca->at(node->id) = true;
+		return true;
+	}
+
+	int num_children_with_marked_leaves = 0;
+
+	for (Tree::Node* child : node->children) {
+		if (mark_lcas(child, is_marked_leaf, is_lca)) {
+			num_children_with_marked_leaves++;
+		}
+	}
+
+	if (num_children_with_marked_leaves >= 2) {
+		is_lca->at(node->id) = true;
+	}
+
+	return num_children_with_marked_leaves > 0;
+}
+
+Tree::Node* build_restricted_subtree() {
+}
+
+// Builds the subtree of tree restricted to marked_leaves
+Tree* restricted_subtree(Tree* tree, std::vector<int>* marked_leaves) {
+	if (marked_leaves->empty()) return NULL;
+
+	std::vector<bool> is_lca(tree->get_nodes_num(), false);
+	std::vector<bool> is_marked_leaf(tree->get_nodes_num(), false);
+
+	for (int leaf : *marked_leaves) {
+		is_marked_leaf[leaf] = true;
+	}
+
+	mark_lcas(tree->get_root(), &is_marked_leaf, &is_lca);
+
+	// Build new tree with only lcas
+	Tree* new_tree = new Tree(std::count(is_lca.begin(), is_lca.end(), true));
+
+
+}
+
 Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
+	std::cout << trees.at(0)->to_string() << std::endl;
+	std::vector<int>* marked_leaves = new std::vector<int>[3];
+	marked_leaves->push_back(2); marked_leaves->push_back(5); marked_leaves->push_back(6);
+	restricted_subtree(trees.at(0), marked_leaves);
 
 	start = new int[Tree::get_taxas_num()*2];
 	stop = new int[Tree::get_taxas_num()*2];
