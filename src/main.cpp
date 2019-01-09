@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
 	if (consensus == NULL) {
 		std::cout << "No valid consensus found." << std::endl;
 	} else {
-		cout << consensus->to_newick() << endl;
+        std::cout << consensus->to_newick() << std::endl;
 	}
 
 	// for (Tree* tree : trees) {

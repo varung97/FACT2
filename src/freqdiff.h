@@ -68,6 +68,7 @@ int* levels,* ids;
 int* parent;
 bool* exists;
 Tree::Node** tree_nodes;
+Tree::Node empty_node = Tree::Node(-1, -1, 0);
 
 
 // calculate cluster weights using kn^2 method
@@ -758,35 +759,223 @@ bool mark_lcas(Tree::Node* node, std::vector<bool>* is_marked_leaf, std::vector<
 	return num_children_with_marked_leaves > 0;
 }
 
-Tree::Node* build_restricted_subtree() {
+// Builds the subtree of tree restricted to some leaves given marked lcas
+Tree::Node* build_restricted_subtree(Tree* tree, Tree::Node* root, std::vector<bool>* is_lca, std::vector<Tree::Node*>* assoc_nodes) {
+    bool root_is_lca = is_lca->at(root->id);
+    
+    if (root->is_leaf()) {
+        if (root_is_lca) {
+            // If root is a marked leaf then create new node
+            // Leaves are labelled with 1, this is only useful for trees with a single leaf
+            return assoc_nodes->at(root->id) = tree->add_node(root->taxa, 1);
+        } else {
+            // Else no subtree
+            return NULL;
+        }
+    }
+
+    // If there is only one child with non-NULL subtree, then we can just return that subtree
+    // If more than one child have non-NULL subtrees, then root is an lca and we need to connect each of these subtrees to the node
+    Tree::Node* node = root_is_lca ? tree->add_node() : NULL;
+    for (Tree::Node* child : root->children) {
+        Tree::Node* child_subtree = build_restricted_subtree(tree, child, is_lca, assoc_nodes);
+        
+        if (child_subtree != NULL) {
+            if (root_is_lca) {
+                node->add_child(child_subtree);
+            } else {
+                assoc_nodes->at(root->id) = child_subtree;
+                return child_subtree;
+            }
+        }
+    }
+    
+    // At this point, either root is an lca or has no subtree
+    if (root_is_lca) {
+        return assoc_nodes->at(root->id) = node;
+    } else {
+        return NULL;
+    }
 }
 
 // Builds the subtree of tree restricted to marked_leaves
-Tree* restricted_subtree(Tree* tree, std::vector<int>* marked_leaves) {
-	if (marked_leaves->empty()) return NULL;
+// Also populates the associated node for each node in tree, defined as shallowest descendant of the node in the restricted subtree
+Tree* restricted_subtree(Tree* tree, std::vector<int>* marked_taxa, std::vector<Tree::Node*>* assoc_nodes) {
+	if (marked_taxa->empty()) return NULL;
 
 	std::vector<bool> is_lca(tree->get_nodes_num(), false);
 	std::vector<bool> is_marked_leaf(tree->get_nodes_num(), false);
 
-	for (int leaf : *marked_leaves) {
-		is_marked_leaf[leaf] = true;
+    for (int taxon : *marked_taxa) {
+		is_marked_leaf[tree->get_leaf(taxon)->id] = true;
 	}
 
 	mark_lcas(tree->get_root(), &is_marked_leaf, &is_lca);
 
 	// Build new tree with only lcas
-	Tree* new_tree = new Tree(std::count(is_lca.begin(), is_lca.end(), true));
+    Tree* new_tree = new Tree(std::count(is_lca.begin(), is_lca.end(), true));
+    Tree::Node* root = build_restricted_subtree(new_tree, tree->get_root(), &is_lca, assoc_nodes);
+    new_tree->fix_tree(root);
+    
+    return new_tree;
+}
 
+// Stably counting sorts elements of a vector along axis given by index
+std::vector<std::vector<int>> counting_sort(std::vector<std::vector<int>>& vector, int index) {
+    // Asummed to be non-negative
+    int max_label = 0;
+    for (int i = 0; i < vector.size(); i++) {
+        max_label = max_label > vector[i][index] ? max_label : vector[i][index];
+    }
+    
+    // Each bucket will hold a list of elements
+    std::vector<std::vector<std::vector<int>>> buckets(max_label + 1);
+    
+    // Bucketize
+    for (std::vector<int> element : vector) {
+        buckets[element[index]].push_back(element);
+    }
+    
+    std::vector<std::vector<int>> sorted_vector;
+    
+    // Reassemble
+    for (std::vector<std::vector<int>> bucket : buckets) {
+        for (std::vector<int> element : bucket) {
+            sorted_vector.push_back(element);
+        }
+    }
+    
+    return sorted_vector;
+}
 
+// Labels tree using the labels of the associated nodes in the restricted subtrees
+void label_trees_using_assoc_nodes(std::vector<Tree*> trees, std::vector<std::vector<Tree::Node*>>& assoc_nodes_vector1, std::vector<std::vector<Tree::Node*>>& assoc_nodes_vector2) {
+    // A label pair looks like (left_label, right_label, tree_index, node_id)
+    std::vector<std::vector<int>> label_pairs;
+    
+    for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
+        for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
+            label_pairs.push_back({assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id});
+        }
+    }
+
+    // Stable counting sort along each of the labels
+    label_pairs = counting_sort(label_pairs, 1);
+    label_pairs = counting_sort(label_pairs, 0);
+    
+    // Identical nodes stores (tree_index, node_id) of identical nodes
+    std::vector<std::vector<int>> identical_nodes;
+    int label = 1;
+    
+    for (int i = 0; i <= label_pairs.size(); i++) {
+        // If identical nodes is not empty and this pair is different from the previous one then label the identical nodes
+        // Also do so if i == label_pairs.size() since there are no more pairs to be checked
+        if (i == label_pairs.size() ||
+            (!identical_nodes.empty() &&
+             (label_pairs[i - 1][0] != label_pairs[i][0] || label_pairs[i - 1][1] != label_pairs[i][1])
+             )
+            ) {
+
+            for (std::vector<int> identical_node : identical_nodes) {
+                trees[identical_node[0]]->get_node(identical_node[1])->label = label;
+            }
+            
+            label++;
+            identical_nodes.clear();
+        }
+        
+        if (i < label_pairs.size()) {
+            identical_nodes.push_back({label_pairs[i][2], label_pairs[i][3]});
+        }
+    }
+}
+
+// Divide marked_leaves into 2 parts and recursively label
+void label_trees_helper(std::vector<Tree*>& trees, std::vector<int>& marked_taxa) {
+    if (marked_taxa.size() == 1) {
+        return;
+    }
+    
+    std::vector<int> marked_taxa1, marked_taxa2;
+    
+    int i = 0;
+    for (; i < marked_taxa.size() / 2; i++) {
+        marked_taxa1.push_back(marked_taxa[i]);
+    }
+    for (; i < marked_taxa.size(); i++) {
+        marked_taxa2.push_back(marked_taxa[i]);
+    }
+    
+    std::vector<Tree*> trees1, trees2;
+    std::vector<std::vector<Tree::Node*>> assoc_nodes_vector1, assoc_nodes_vector2;
+    
+    for (Tree* tree : trees) {
+        // Default assoc node is the empty node, representing no marked taxa in leafset
+        std::vector<Tree::Node*> assoc_nodes1(tree->get_nodes_num(), &empty_node);
+        std::vector<Tree::Node*> assoc_nodes2(tree->get_nodes_num(), &empty_node);
+
+        trees1.push_back(restricted_subtree(tree, &marked_taxa1, &assoc_nodes1));
+        trees2.push_back(restricted_subtree(tree, &marked_taxa2, &assoc_nodes2));
+        
+        assoc_nodes_vector1.push_back(assoc_nodes1);
+        assoc_nodes_vector2.push_back(assoc_nodes2);
+    }
+    
+    label_trees_helper(trees1, marked_taxa1);
+    label_trees_helper(trees2, marked_taxa2);
+    
+    label_trees_using_assoc_nodes(trees, assoc_nodes_vector1, assoc_nodes_vector2);
+}
+
+// Labels nodes in the trees, giving identical labels to nodes with identical leafsets
+void label_trees(std::vector<Tree*>& trees) {
+    std::vector<int> marked_taxa;
+    for (int i = 0; i < Tree::get_taxas_num(); i++) {
+        marked_taxa.push_back(i);
+    }
+
+    label_trees_helper(trees, marked_taxa);
+}
+
+void calc_w_knlogn(std::vector<Tree*>& trees) {
+    label_trees(trees);
+    
+    // A label looks like (label, tree_index, node_id)
+    std::vector<std::vector<int>> labels;
+    
+    for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
+        for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
+            labels.push_back({trees[tree_index]->get_node(node_id)->label, tree_index, node_id});
+        }
+    }
+    
+    labels = counting_sort(labels, 0);
+    
+    // Identical nodes stores (tree_index, node_id) of identical nodes
+    std::vector<std::vector<int>> identical_nodes;
+    
+    for (int i = 0; i <= labels.size(); i++) {
+        // If identical nodes is not empty and this label is different from the previous one then compute freq for the identical nodes
+        // Also do so if i == labels.size() since there are no more labels to be checked
+        if (i == labels.size() ||
+            (!identical_nodes.empty() && labels[i - 1][0] != labels[i][0])
+            ) {
+
+            for (std::vector<int> identical_node : identical_nodes) {
+                trees[identical_node[0]]->get_node(identical_node[1])->weight = identical_nodes.size();
+            }
+            
+            identical_nodes.clear();
+        }
+        
+        if (i < labels.size()) {
+            identical_nodes.push_back({labels[i][1], labels[i][2]});
+        }
+    }
 }
 
 Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
-	std::cout << trees.at(0)->to_string() << std::endl;
-	std::vector<int>* marked_leaves = new std::vector<int>[3];
-	marked_leaves->push_back(2); marked_leaves->push_back(5); marked_leaves->push_back(6);
-	restricted_subtree(trees.at(0), marked_leaves);
-
-	start = new int[Tree::get_taxas_num()*2];
+    start = new int[Tree::get_taxas_num()*2];
 	stop = new int[Tree::get_taxas_num()*2];
 	e = new int[Tree::get_taxas_num()];
 	m = new int[Tree::get_taxas_num()*2];
@@ -827,7 +1016,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 		}
 		trees[i]->reorder();
 	}
-	calc_w_kn2(trees);
+	calc_w_knlogn(trees);
 
 	lca_t** lca_preps = new lca_t*[trees.size()];
 	for (size_t i = 0; i < trees.size(); i++) {
