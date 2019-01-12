@@ -1025,7 +1025,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 			subpath_query_ti[i] = preprocess_subpaths_queries(trees[i]);
 		}
 	}
-
+    
 	Tree* T = new Tree(trees[0]);
 	for (size_t i = 1; i < trees.size(); i++) {
 		Tree* Ti = new Tree(trees[i]);

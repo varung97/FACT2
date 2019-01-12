@@ -6,13 +6,20 @@
 class RMQ {
 public:
     // Tree must be ordered such that for any node, the first child is the one with largest leafset
-    RMQ(Tree* tree);
+    RMQ(Tree* tree, lca_t* lca_prep);
     
     // Max weight along path from v to w
     // w must be an ancestor of v
     int rmq(Tree::Node* v, Tree::Node* w);
+    
+    // Returns the child of w that is an ancestor of v
+    // w must be a proper ancestor of v
+    Tree::Node* child_for_descendant(Tree::Node* v, Tree::Node* w);
 
 private:
+    // Pointer to lca structure for tree
+    lca_t* lca_prep;
+    
     // Pointer from each node to the root of its centroid path
     std::vector<Tree::Node*> cp_roots;
     
@@ -31,22 +38,24 @@ private:
     // Pointers from each node to the rmq for some leaf in its leafset
     std::vector<gen_rmq_t*> leaf_rmq_for_nodes;
     
-    // Numbering leaves left to right,
-    // For each centroid path, for each node, store the minimum leaf index in all side trees as integers
-    // Numbering leaves left to right, minimum leaf index in all side trees of a node
-    // For leaves, this is just their own index
-    std::vector<std::vector<int>> min_leaf_idx_in_side_trees_cps_int;
+    // Numbering leaves left to right, leftmost and rightmost leaves in subtree
+    std::vector<int> left_most_leaf, right_most_leaf;
     
-    // For each centroid path, store a rank structure containing min leaf indices
-    // Note that these are offset to the index of the smallest leaf in the centroid path to save space
-    std::vector<sdsl::rank_support_v<1>> min_leaf_idx_in_side_trees_cp_ranks;
+    // For each centroid path, store a rank structure containing, for each node, the leftmost leaf index in its side trees
+    // Note that these are offset to the index of the leftmost leaf in the centroid path to save space
+    std::vector<sdsl::rank_support_v<1>> min_leaf_idx_in_side_trees_cps_ranks;
+    
+    // For each internal node, store a rank structure containing leftmost leaf indices for all children except heaviest child
+    // Note that these are offset to the leftmost leaf index of the second child to save space
+    std::vector<sdsl::rank_support_v<1>> min_leaf_idx_children_ranks;
     
     void preprocess_depths(Tree* tree);
     void preprocess_centroid_paths(Tree* tree);
     void preprocess_leaf_rmqs(Tree* tree);
-    int preprocess_min_leaf_idx_in_side_trees_helper(Tree::Node* node, int first_available_index);
-    void preprocess_min_leaf_idx_in_side_trees(Tree* tree);
+    int preprocess_left_right_most_leaf_helper(Tree::Node* node, int first_available_index);
+    void preprocess_left_right_most_leaf(Tree* tree);
     void populate_min_leaf_idx_in_side_trees_cps(Tree* tree);
+    void populate_min_leaf_idx_children(Tree* tree);
     void preprocess_leaf_rank_structures(Tree* tree);
     
     int rmq_q1(Tree::Node* v, Tree::Node* w);

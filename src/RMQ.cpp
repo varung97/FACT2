@@ -108,67 +108,104 @@ void RMQ::preprocess_leaf_rmqs(Tree* tree) {
     }
 }
 
-// Numbers leaves from left to right, starting at first_available index and populates min_leaf_idx_in_side_trees_cps_int
+// Numbers leaves is subtree of node from left to right, starting at first_available index
+// Populates left_most_leaf and right_most_leaf
 // Returns the new first_available_index
-int RMQ::preprocess_min_leaf_idx_in_side_trees_helper(Tree::Node* node, int first_available_index) {
+int RMQ::preprocess_left_right_most_leaf_helper(Tree::Node* node, int first_available_index) {
     if (node->is_leaf()) {
-        min_leaf_idx_in_side_trees_cps_int[cp_indices[node->id]].push_back(first_available_index);
+        left_most_leaf[node->id] = right_most_leaf[node->id] = first_available_index;
         return first_available_index + 1;
     }
     
-    // This gives index of first leaf in side trees
-    first_available_index = preprocess_min_leaf_idx_in_side_trees_helper(node->children[0], first_available_index);
-    min_leaf_idx_in_side_trees_cps_int[cp_indices[node->id]].push_back(first_available_index);
+    left_most_leaf[node->id] = first_available_index;
     
-    for (int i = 1; i < node->children.size(); i++) {
-        first_available_index = preprocess_min_leaf_idx_in_side_trees_helper(node->children[i], first_available_index);
+    for (Tree::Node* child : node->children) {
+        first_available_index = preprocess_left_right_most_leaf_helper(child, first_available_index);
     }
+    
+    right_most_leaf[node->id] = first_available_index - 1;
     
     return first_available_index;
 }
 
-void RMQ::preprocess_min_leaf_idx_in_side_trees(Tree* tree) {
-    min_leaf_idx_in_side_trees_cps_int = std::vector<std::vector<int>>(tree->get_leaves_num());
-    preprocess_min_leaf_idx_in_side_trees_helper(tree->get_root(), 0);
+// Numbers leaves from left to right, starting at first_available index
+// Populates left_most_leaf and right_most_leaf
+void RMQ::preprocess_left_right_most_leaf(Tree* tree) {
+    left_most_leaf = std::vector<int>(tree->get_nodes_num());
+    right_most_leaf = std::vector<int>(tree->get_nodes_num());
+    preprocess_left_right_most_leaf_helper(tree->get_root(), 0);
+}
+
+// Populates the rank structures for each centroid path, containing leftmost leaf in the side trees of each node in that path
+void RMQ::populate_min_leaf_idx_in_side_trees_cps(Tree* tree) {
+    // Number of centroid paths is the same as number of leaves
+    std::vector<sdsl::bit_vector*> min_leaf_idx_in_side_trees_cps_bv = std::vector<sdsl::bit_vector*>(tree->get_leaves_num());
+    min_leaf_idx_in_side_trees_cps_ranks = std::vector<sdsl::rank_support_v<1>>(tree->get_leaves_num());
     
-    // Centroid paths were populated bottom to top, so need to be reversed
-    for (int i = 0; i < min_leaf_idx_in_side_trees_cps_int.size(); i++) {
-        std::reverse(min_leaf_idx_in_side_trees_cps_int[i].begin(), min_leaf_idx_in_side_trees_cps_int[i].end());
+    // Assumes all taxa are represented in tree
+    for (int i = 0; i < Tree::get_taxas_num(); i++) {
+        int cp_root_id = cp_roots[tree->get_leaf(i)->id]->id;
+        
+        // Each entry is offset by the smallest one to reduce space taken by the bit vector
+        int bit_vector_size = right_most_leaf[cp_root_id] - left_most_leaf[cp_root_id] + 1;
+        min_leaf_idx_in_side_trees_cps_bv[cp_indices[cp_root_id]] = new sdsl::bit_vector(bit_vector_size, 0);
+    }
+    
+    // Populate the bit vectors
+    for (int i = 0; i < tree->get_nodes_num(); i++) {
+        Tree::Node* node = tree->get_node(i);
+        
+        if (node->is_leaf()) {
+            continue;
+        }
+        
+        // We also subtract 1 from each entry. The reason is illustrated below:
+        // Say the entries are 0, 1, 4
+        // Then the leafs in the side trees of the second node in the centroid path are 1, 2, 3
+        // All of these should give us the same answer when a rank query is made; however 1 gives a different result
+        // To account for this we subtract 1 from the entries
+        (*min_leaf_idx_in_side_trees_cps_bv[cp_indices[i]])[left_most_leaf[node->children[1]->id] - left_most_leaf[i] - 1] = 1;
+    }
+    
+    // Create rank support structures for the bit vectors
+    for (int i = 0; i < min_leaf_idx_in_side_trees_cps_bv.size(); i++) {
+        min_leaf_idx_in_side_trees_cps_ranks[i] = *new sdsl::rank_support_v<1>(min_leaf_idx_in_side_trees_cps_bv[i]);
     }
 }
 
-void RMQ::populate_min_leaf_idx_in_side_trees_cps(Tree* tree) {
-    min_leaf_idx_in_side_trees_cp_ranks = std::vector<sdsl::rank_support_v<1>>();
-
-    for (int i = 0; i < min_leaf_idx_in_side_trees_cps_int.size(); i++) {
-        // Each entry is offset by the smallest one to reduce space taken by the bit vector
-        int bit_vector_size = min_leaf_idx_in_side_trees_cps_int[i][0] - min_leaf_idx_in_side_trees_cps_int[i].back() + 1;
-        sdsl::bit_vector* min_leaf_idx_in_side_trees_cp = new sdsl::bit_vector(bit_vector_size, 0);
+// Populates rank structures for each internal node, containing min leaf indices for each child (excluding heaviest child)
+void RMQ::populate_min_leaf_idx_children(Tree* tree) {
+    min_leaf_idx_children_ranks = std::vector<sdsl::rank_support_v<1>>(tree->get_nodes_num());
+    
+    for (int i = 0; i < tree->get_nodes_num(); i++) {
+        Tree::Node* node = tree->get_node(i);
         
-        for (int min_leaf_idx_in_side_trees : min_leaf_idx_in_side_trees_cps_int[i]) {
-            // We also subtract 1 from each entry. The reason is illustrated below:
-            // Say the entries are 0, 1, 4
-            // Then the leafs in the side trees of the second node in the centroid path are 1, 2, 3
-            // All of these should give us the same answer when a rank query is made; however 1 gives a different result
-            // To account for this we subtract 1 from the entries
-            if (min_leaf_idx_in_side_trees - min_leaf_idx_in_side_trees_cps_int[i].back() != 0) {
-                (*min_leaf_idx_in_side_trees_cp)[min_leaf_idx_in_side_trees - min_leaf_idx_in_side_trees_cps_int[i].back() - 1] = 1;
-            }
+        if (node->is_leaf()) {
+            continue;
+        }
+        
+        // Each entry is offset by leftmost leaf of second child to reduce space taken by the bit vector
+        int bit_vector_size = right_most_leaf[node->children.back()->id] - left_most_leaf[node->children[1]->id] + 1;
+        sdsl::bit_vector* min_leaf_idx = new sdsl::bit_vector(bit_vector_size, 0);
+        
+        // Skip second child since its entry will become negative after subtracting 1
+        for (int j = 2; j < node->get_children_num(); j++) {
+            // Similarly as in populate_min_leaf_idx_in_side_trees_cps, we subtract 1 from each entry
+            (*min_leaf_idx)[left_most_leaf[node->children[j]->id] - left_most_leaf[node->children[1]->id] - 1] = 1;
         }
         
         // Create a rank support structure for the bit vector
-        min_leaf_idx_in_side_trees_cp_ranks.push_back(*new sdsl::rank_support_v<1>(min_leaf_idx_in_side_trees_cp));
+        min_leaf_idx_children_ranks[i] = *new sdsl::rank_support_v<1>(min_leaf_idx);
     }
 }
 
 void RMQ::preprocess_leaf_rank_structures(Tree* tree) {
-    // Number of centroid paths is the same as number of leaves
-    preprocess_min_leaf_idx_in_side_trees(tree);
+    preprocess_left_right_most_leaf(tree);
     populate_min_leaf_idx_in_side_trees_cps(tree);
+    populate_min_leaf_idx_children(tree);
 }
 
-RMQ::RMQ(Tree* tree) {
-    std::cout << tree->to_string() << std::endl;
+RMQ::RMQ(Tree* tree, lca_t* lca_prep_in) : lca_prep(lca_prep_in) {
     preprocess_leaf_rmqs(tree);
     preprocess_leaf_rank_structures(tree);
 }
@@ -212,18 +249,29 @@ int RMQ::rmq_qg(Tree::Node* v, Tree::Node* w) {
         return 0;
     }
     
-    // Get index of leftmost leaf in subtree at v
-    int idx_of_leaf = min_leaf_idx_in_side_trees_cps_int[cp_indices[v->id]].back();
     int w_cp_idx = cp_indices[w->id];
 
     // Rank query gives index from bottom of centroid path, subtract from length of centroid path - 1 to get real index
-    int deepest_node = min_leaf_idx_in_side_trees_cps_int[w_cp_idx].size() - 1 -
-                       min_leaf_idx_in_side_trees_cp_ranks[w_cp_idx](idx_of_leaf - min_leaf_idx_in_side_trees_cps_int[w_cp_idx].back());
+    int size_of_centroid_path = depths[left_most_leaf[w->id]] - depths[cp_roots[w->id]->id];
+    int deepest_node = size_of_centroid_path - 1 -
+                       min_leaf_idx_in_side_trees_cps_ranks[w_cp_idx](left_most_leaf[v->id] - left_most_leaf[w->id]);
+
     gen_rmq_t* curr_rmq = cp_rmqs[w_cp_idx];
-    
     return -curr_rmq->v[general_rmq(curr_rmq, deepest_node, depths[w->id] - depths[cp_roots[w->id]->id])];
 }
 
 int RMQ::rmq(Tree::Node* v, Tree::Node* w) {
     return std::max({rmq_q1(v, w), rmq_q2_qg1(v, w), rmq_qg(v, w)});
+}
+
+Tree::Node* RMQ::child_for_descendant(Tree::Node* v, Tree::Node* w) {
+    // If heaviest child is ancestor of v, return that
+    if (lca(lca_prep, v->id, w->children[0]->id) == w->children[0]->id) {
+        return w->children[0];
+    }
+    
+    // Otherwise, query children rank structure
+    int child_rank = min_leaf_idx_children_ranks[w->id](left_most_leaf[v->id] - left_most_leaf[w->children[1]->id]);
+    // Add 1 to rank to account for the fact that heaviest child is excluded
+    return w->children[child_rank + 1];
 }
