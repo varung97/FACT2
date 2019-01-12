@@ -3,8 +3,8 @@ BEGIN TAXA;
 END;
 
 BEGIN TREES;
-    blah;
-    blah;
+    necessary_otherwise_doesnt_work;
+    necessary_otherwise_doesnt_work;
     TREE tree0 = ((0,1),(2,3,4));
     TREE tree1 = ((0,(1,2)),(3,4));
     TREE tree2 = ((((0,1),2),3),4);

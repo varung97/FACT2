@@ -18,6 +18,7 @@
 #include "utils.h"
 
 #include "Tree.h"
+#include "RMQ.h"
 
 struct node_bitvec_t {
 	Tree::Node* node;
@@ -341,6 +342,8 @@ subpath_query_info_t* preprocess_subpaths_queries(Tree* tree) {
 
 	gen_rmq_t** cp_rmqs = subpath_query_info->cp_rmqs;
 	gen_rmq_t* nullp = NULL;
+
+    // This initialisation looks to be taking O(n) instead of O(m) time - that probably violates the efficiency guarantee
 	std::fill(cp_rmqs, cp_rmqs+Tree::get_taxas_num()*2, nullp);
 	for (size_t i = 0; i < tree->get_nodes_num(); i++) {
 		if (cp_rmqs[cp_roots[i]->id] == NULL) {
@@ -832,19 +835,19 @@ std::vector<std::vector<int>> counting_sort(std::vector<std::vector<int>>& vecto
     std::vector<std::vector<std::vector<int>>> buckets(max_label + 1);
     
     // Bucketize
-    for (std::vector<int> element : vector) {
-        buckets[element[index]].push_back(element);
+    for (int i = 0; i < vector.size(); i++) {
+        buckets[vector[i][index]].push_back(vector[i]);
     }
     
     std::vector<std::vector<int>> sorted_vector;
     
     // Reassemble
-    for (std::vector<std::vector<int>> bucket : buckets) {
-        for (std::vector<int> element : bucket) {
-            sorted_vector.push_back(element);
+    for (int i = 0; i < buckets.size(); i++) {
+        for (int j = 0; j < buckets[i].size(); j++) {
+            sorted_vector.push_back(buckets[i][j]);
         }
     }
-    
+
     return sorted_vector;
 }
 
@@ -876,8 +879,8 @@ void label_trees_using_assoc_nodes(std::vector<Tree*> trees, std::vector<std::ve
              )
             ) {
 
-            for (std::vector<int> identical_node : identical_nodes) {
-                trees[identical_node[0]]->get_node(identical_node[1])->label = label;
+            for (int j = 0; j < identical_nodes.size(); j++) {
+                trees[identical_nodes[j][0]]->get_node(identical_nodes[j][1])->label = label;
             }
             
             label++;
@@ -933,7 +936,7 @@ void label_trees(std::vector<Tree*>& trees) {
     for (int i = 0; i < Tree::get_taxas_num(); i++) {
         marked_taxa.push_back(i);
     }
-
+    
     label_trees_helper(trees, marked_taxa);
 }
 
@@ -961,8 +964,8 @@ void calc_w_knlogn(std::vector<Tree*>& trees) {
             (!identical_nodes.empty() && labels[i - 1][0] != labels[i][0])
             ) {
 
-            for (std::vector<int> identical_node : identical_nodes) {
-                trees[identical_node[0]]->get_node(identical_node[1])->weight = identical_nodes.size();
+            for (int j = 0; j < identical_nodes.size(); j++) {
+                trees[identical_nodes[j][0]]->get_node(identical_nodes[j][1])->weight = identical_nodes.size();
             }
             
             identical_nodes.clear();
@@ -1004,21 +1007,13 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 	exists = new bool[Tree::get_taxas_num()*2];
 	tree_nodes = new Tree::Node*[Tree::get_taxas_num()*2];
 
-	// weights[i][node id] = weights of cluster of node (with node id) in tree i
-	// initialize leaves and roots to "number of trees" because trivial clusters will have that value
-	//calc_w_k2n(trees);
 	for (size_t i = 0; i < trees.size(); i++) {
-		for (size_t j = 0; j < trees[i]->get_nodes_num(); j++) {
-			Tree::Node* node = trees[i]->get_node(j);
-			if (node->is_root() || node->is_leaf()) {
-				node->weight = trees.size();
-			}
-		}
 		trees[i]->reorder();
 	}
-	calc_w_knlogn(trees);
 
-	lca_t** lca_preps = new lca_t*[trees.size()];
+    calc_w_knlogn(trees);
+
+    lca_t** lca_preps = new lca_t*[trees.size()];
 	for (size_t i = 0; i < trees.size(); i++) {
 		lca_preps[i] = lca_preprocess(trees[i]);
 	}

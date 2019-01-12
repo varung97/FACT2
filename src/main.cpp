@@ -18,6 +18,7 @@ int main(int argc, char** argv) {
 	}
 
 	string algo(argv[1]);
+    string blah(argv[2]);
 
 	ifstream fin(argv[2]);
 	vector<Tree*> trees = parse_nex(fin);

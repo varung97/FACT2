@@ -1,0 +1,10 @@
+BEGIN TAXA;
+    TAXLABELS 0 1 2 3 4 5 6 7;
+END;
+
+BEGIN TREES;
+    necessary_otherwise_doesnt_work;
+    necessary_otherwise_doesnt_work;
+    TREE tree0 = (((0,1),4),((5,2),6,(7,3)));
+    TREE tree1 = ((((0,4),1),5,2),(6,(3,7)));
+END;
