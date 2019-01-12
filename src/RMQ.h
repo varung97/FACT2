@@ -7,14 +7,10 @@ class RMQ {
 public:
     // Tree must be ordered such that for any node, the first child is the one with largest leafset
     RMQ(Tree* tree, lca_t* lca_prep);
-    
-    // Max weight along path from v to w
-    // w must be an ancestor of v
-    int rmq(Tree::Node* v, Tree::Node* w);
-    
-    // Returns the child of w that is an ancestor of v
+
+    // Return max weight along path from v to w, excluding w
     // w must be a proper ancestor of v
-    Tree::Node* child_for_descendant(Tree::Node* v, Tree::Node* w);
+    int max_weight_path(Tree::Node* v, Tree::Node* w);
 
 private:
     // Pointer to lca structure for tree
@@ -61,6 +57,8 @@ private:
     int rmq_q1(Tree::Node* v, Tree::Node* w);
     int rmq_q2_qg1(Tree::Node* v, Tree::Node*w);
     int rmq_qg(Tree::Node* v, Tree::Node* w);
+    int rmq(Tree::Node* v, Tree::Node* w);
+    Tree::Node* child_for_descendant(Tree::Node* v, Tree::Node* w);
 };
 
 #endif /* RMQ_hpp */

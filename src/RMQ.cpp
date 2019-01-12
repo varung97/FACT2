@@ -260,10 +260,14 @@ int RMQ::rmq_qg(Tree::Node* v, Tree::Node* w) {
     return -curr_rmq->v[general_rmq(curr_rmq, deepest_node, depths[w->id] - depths[cp_roots[w->id]->id])];
 }
 
+// Max weight along path from v to w
+// w must be an ancestor of v
 int RMQ::rmq(Tree::Node* v, Tree::Node* w) {
     return std::max({rmq_q1(v, w), rmq_q2_qg1(v, w), rmq_qg(v, w)});
 }
 
+// Returns the child of w that is an ancestor of v
+// w must be a proper ancestor of v
 Tree::Node* RMQ::child_for_descendant(Tree::Node* v, Tree::Node* w) {
     // If heaviest child is ancestor of v, return that
     if (lca(lca_prep, v->id, w->children[0]->id) == w->children[0]->id) {
@@ -274,4 +278,8 @@ Tree::Node* RMQ::child_for_descendant(Tree::Node* v, Tree::Node* w) {
     int child_rank = min_leaf_idx_children_ranks[w->id](left_most_leaf[v->id] - left_most_leaf[w->children[1]->id]);
     // Add 1 to rank to account for the fact that heaviest child is excluded
     return w->children[child_rank + 1];
+}
+
+int RMQ::max_weight_path(Tree::Node* v, Tree::Node* w) {
+    return rmq(v, child_for_descendant(v, w));
 }
