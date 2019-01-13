@@ -64,6 +64,7 @@ public:
 	int id, secondary_id;
 	int taxa, weight;
     int label;
+    int counter;
 	size_t size; // number of leaves in subtree
 	int depth;
 

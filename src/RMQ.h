@@ -12,10 +12,10 @@ public:
     // w must be a proper ancestor of v
     int max_weight_path(Tree::Node* v, Tree::Node* w);
 
-private:
     // Pointer to lca structure for tree
     lca_t* lca_prep;
     
+private:
     // Pointer from each node to the root of its centroid path
     std::vector<Tree::Node*> cp_roots;
     

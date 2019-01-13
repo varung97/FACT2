@@ -12,6 +12,8 @@
 #include <queue>
 #include <cassert>
 #include <boost/dynamic_bitset.hpp>
+#include <boost/unordered_set.hpp>
+#include <boost/heap/fibonacci_heap.hpp>
 
 #include "taxas_ranges.h"
 #include "lca_preprocessing.h"
@@ -977,6 +979,102 @@ void calc_w_knlogn(std::vector<Tree*>& trees) {
     }
 }
 
+// Returns rootsOfSubtrees(\leafset(T_A))
+boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root_T_A, Tree* T_B, RMQ* rmq_T_B, bool* to_del_T_A) {
+    Tree::Node* curr = root_T_A;
+    std::vector<boost::unordered_set<Tree::Node*>> lower_boundaries = std::vector<boost::unordered_set<Tree::Node*>>();
+    
+    // recursively call filter_clusters on side trees and build up lower boundaries
+    while (!curr->is_leaf()) {
+        boost::unordered_set<Tree::Node*> lower_boundary = boost::unordered_set<Tree::Node*>();
+
+        for (int i = 1; i < curr->get_children_num(); i++) {
+            lower_boundary.merge(*filter_clusters_nlogn_helper(curr->children[i], T_B, rmq_T_B, to_del_T_A));
+        }
+        
+        lower_boundaries.push_back(lower_boundary);
+        curr = curr->children[0];
+    }
+
+    // Was built top to bottom, but more convenient in the other direction
+    std::reverse(lower_boundaries.begin(), lower_boundaries.end());
+
+    // First lca, leaf in T_B labelled by leaf in T_A
+    Tree::Node* l_i = T_B->get_leaf(curr->taxa);
+    l_i->counter = 0;
+    l_i->parent->counter = 1;
+    int lower_boundary_counter = -1; // Start at -1 since no lower boundary for leaf
+    
+    boost::unordered_set<Tree::Node*>* roots = new boost::unordered_set<Tree::Node*>({l_i});
+    boost::heap::fibonacci_heap<int> incompatible = boost::heap::fibonacci_heap<int>();
+    std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>* heap_handles = new std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>;
+
+    
+    while (curr != root_T_A) {
+        curr = curr->parent;
+        lower_boundary_counter++;
+        
+        Tree::Node* prev_l_i = l_i;
+        for (Tree::Node* v : lower_boundaries[lower_boundary_counter]) {
+            l_i = T_B->get_node(lca(rmq_T_B->lca_prep, l_i->id, v->id));
+        }
+        
+        // Add nodes from prev_l_i to l_i
+        // Include prev_l_i if incompatible with previous centroid path node
+        if (prev_l_i->counter == prev_l_i->get_children_num()) {
+            heap_handles->insert({prev_l_i->parent->id, incompatible.push(rmq_T_B->max_weight_path(prev_l_i->parent, l_i))});
+        } else {
+            heap_handles->insert({prev_l_i->id, incompatible.push(rmq_T_B->max_weight_path(prev_l_i, l_i))});
+        }
+        
+        for (Tree::Node* v : lower_boundaries[lower_boundary_counter]) {
+            v->parent->counter++;
+            roots->insert(v);
+            
+            v = v->parent;
+            
+            while (v->counter == v->get_children_num()) {
+                v->parent->counter++;
+
+                roots->insert(v);
+                for (Tree::Node* child : v->children) {
+                    roots->erase(child);
+                }
+
+                // If v in incompatible then remove it
+                if (heap_handles->find(v->id) != heap_handles->end()) {
+                    // Increase key then delete-max
+                    incompatible.increase(heap_handles->at(v->id), incompatible.top() + 1);
+                    incompatible.pop();
+                    heap_handles->erase(v->id);
+                }
+                
+                v = v->parent;
+            }
+            
+            // Add max weight from v until l_i to incompatible
+            heap_handles->insert({v->id, incompatible.push(rmq_T_B->max_weight_path(v, l_i))});
+        }
+        
+        int max_weight = heap_handles->size() == 0 ? 0 : incompatible.top();
+        if (curr->weight <= max_weight) {
+            to_del_T_A[curr->id] = true;
+        }
+    }
+    
+    for (Tree::Node* root : *roots) {
+        root->parent->counter = 0;
+    }
+    
+    return roots;
+}
+
+void filter_clusters_nlogn(Tree* T_A, Tree* T_B, lca_t* lca_T_B, bool* to_del_T_A) {
+    RMQ* rmq_T_B = new RMQ(T_B, lca_T_B);
+
+    filter_clusters_nlogn_helper(T_A->get_root(), T_B, rmq_T_B, to_del_T_A);
+}
+
 Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
     start = new int[Tree::get_taxas_num()*2];
 	stop = new int[Tree::get_taxas_num()*2];
@@ -985,7 +1083,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 	rsort_lists = new std::vector<Tree::Node*>[Tree::get_taxas_num()];
 
 	marked = new bool[Tree::get_taxas_num()*2];
-	std::fill(marked, marked+Tree::get_taxas_num()*2, false);
+    std::fill(marked, marked+Tree::get_taxas_num()*2, false);
 	bool* to_del_t = new bool[Tree::get_taxas_num()*2];
 	bool* to_del_ti = new bool[Tree::get_taxas_num()*2];
 
@@ -1013,6 +1111,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 
     calc_w_knlogn(trees);
 
+    // TODO: Move inside filter clusters maybe?
     lca_t** lca_preps = new lca_t*[trees.size()];
 	for (size_t i = 0; i < trees.size(); i++) {
 		lca_preps[i] = lca_preprocess(trees[i]);

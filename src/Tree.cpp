@@ -227,9 +227,9 @@ int Tree::get_taxa_id(std::string& taxa) {
 	}
 }
 
-Tree::Node::Node(int id) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(NONE), label(NONE), weight(0), size(0), depth(0) {}
-Tree::Node::Node(int id, int taxa) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(taxa), label(NONE), weight(0), size(0), depth(0) {}
-Tree::Node::Node(int id, int taxa, int label) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(taxa), label(label), weight(0), size(0), depth(0) {}
+Tree::Node::Node(int id) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(NONE), label(NONE), weight(0), size(0), depth(0), counter(0) {}
+Tree::Node::Node(int id, int taxa) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(taxa), label(NONE), weight(0), size(0), depth(0), counter(0) {}
+Tree::Node::Node(int id, int taxa, int label) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(taxa), label(label), weight(0), size(0), depth(0), counter(0) {}
 
 void Tree::Node::fix_children() {
 	size_t curr_pos = 0;
