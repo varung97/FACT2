@@ -34,24 +34,6 @@ bool operator < (const node_bitvec_t& bv1, const node_bitvec_t& bv2) {
 	return *(bv1.bitvector) < *(bv2.bitvector);
 }
 
-struct subpath_query_info_t {
-	size_t nodes_num;
-	Tree::Node** cp_roots;
-	gen_rmq_t** cp_rmqs;
-	int* depths;
-
-	subpath_query_info_t(size_t nodes_num) : nodes_num(nodes_num), cp_roots(new Tree::Node*[nodes_num]),
-			cp_rmqs(new gen_rmq_t*[nodes_num]), depths(new int[nodes_num]) {}
-	~subpath_query_info_t() {
-		delete[] cp_roots;
-		for (size_t i = 0; i < nodes_num; i++) {
-			delete cp_rmqs[i];
-		}
-		delete[] cp_rmqs;
-		delete[] depths;
-	}
-};
-
 int* start,* stop;
 int* e,* m;
 std::vector<Tree::Node*>* rsort_lists;
@@ -325,325 +307,6 @@ void filter_clusters_n2(Tree* tree1, Tree* tree2, taxas_ranges_t* t1_tr, taxas_r
 		}
 	}
 }
-
-
-subpath_query_info_t* preprocess_subpaths_queries(Tree* tree) {
-	subpath_query_info_t* subpath_query_info = new subpath_query_info_t(Tree::get_taxas_num()*2);
-
-	// pointer from each node to the root of its cp
-	Tree::Node** cp_roots = subpath_query_info->cp_roots;
-	cp_roots[0] = tree->get_root();
-	for (size_t i = 1; i < tree->get_nodes_num(); i++) {
-		Tree::Node* node = tree->get_node(i);
-		if (node->pos_in_parent == 0) {
-			cp_roots[i] = cp_roots[node->parent->id];
-		} else {
-			cp_roots[i] = node;
-		}
-	}
-
-	gen_rmq_t** cp_rmqs = subpath_query_info->cp_rmqs;
-	gen_rmq_t* nullp = NULL;
-
-    // This initialisation looks to be taking O(n) instead of O(m) time - that probably violates the efficiency guarantee
-	std::fill(cp_rmqs, cp_rmqs+Tree::get_taxas_num()*2, nullp);
-	for (size_t i = 0; i < tree->get_nodes_num(); i++) {
-		if (cp_rmqs[cp_roots[i]->id] == NULL) {
-			cp_rmqs[cp_roots[i]->id] = new gen_rmq_t;
-		}
-		cp_rmqs[cp_roots[i]->id]->v.push_back(-tree->get_node(i)->weight);
-	}
-	for (size_t i = 0; i < tree->get_nodes_num(); i++) {
-		if (cp_rmqs[i] != NULL && cp_rmqs[i]->v.size() > 1) {
-			general_rmq_preprocess(cp_rmqs[i]); // TODO: better to remove v from struct
-		}
-	}
-
-	int* depths = subpath_query_info->depths;
-	depths[0] = 0; // root depth
-	for (size_t i = 1; i < tree->get_nodes_num(); i++) {
-		depths[i] = 1 + depths[tree->get_node(i)->parent->id];
-	}
-
-	return subpath_query_info;
-}
-
-int max_subpath_query(subpath_query_info_t* subpq_info, Tree::Node* ancestor, Tree::Node* descendant) { // TODO: we might need only ids
-	Tree::Node* curr = descendant;
-	int res = 0;
-	while (subpq_info->cp_roots[curr->secondary_id]->id != subpq_info->cp_roots[ancestor->secondary_id]->id) {
-		gen_rmq_t* currpath_rmq = subpq_info->cp_rmqs[subpq_info->cp_roots[curr->secondary_id]->id];
-		int query_endp = subpq_info->depths[curr->secondary_id] - subpq_info->depths[subpq_info->cp_roots[curr->secondary_id]->id];
-		if (query_endp == 0) {
-			res = std::min(res, currpath_rmq->v[0]);
-		} else {
-			res = std::min(res, currpath_rmq->v[general_rmq(currpath_rmq, 0, query_endp)]);
-		}
-		curr = subpq_info->cp_roots[curr->secondary_id]->parent;
-	}
-	gen_rmq_t* currpath_rmq = subpq_info->cp_rmqs[subpq_info->cp_roots[curr->secondary_id]->id];
-	int query_startp = subpq_info->depths[ancestor->secondary_id] - subpq_info->depths[subpq_info->cp_roots[curr->secondary_id]->id];
-	int query_endp = subpq_info->depths[curr->secondary_id] - subpq_info->depths[subpq_info->cp_roots[curr->secondary_id]->id];
-	if (query_startp < query_endp) {
-		res = std::min(res, currpath_rmq->v[general_rmq(currpath_rmq, query_startp+1, query_endp)]);
-	}
-	return -res;
-}
-
-
-subpath_query_info_t* subpq_info; // TODO: temporary
-// leaves in marked must be sorted in left-to-right order
-Tree* contract_tree_fast(Tree* tree, lca_t* lca_prep, std::vector<int>& marked) {	//TODO: think about externalizing lca_t
-	if (marked.empty()) return NULL;
-
-	int count = 0;
-
-	levels[count] = tree->get_leaf(marked[0])->depth;
-	ids[count] = tree->get_leaf(marked[0])->secondary_id;
-	count++;
-	for (size_t i = 1; i < marked.size(); i++) {
-		int lca_id = lca(lca_prep, tree->get_leaf(marked[i-1])->id, tree->get_leaf(marked[i])->id);
-		levels[count] = tree->get_node(lca_id)->depth;
-		ids[count] = tree->get_node(lca_id)->secondary_id;
-		count++;
-		levels[count] = tree->get_leaf(marked[i])->depth;
-		ids[count] = tree->get_leaf(marked[i])->secondary_id;
-		count++;
-	}
-
-	//std::vector<int> pointer(levels.size(), -1);
-	for (int i = 0; i < count; i++) pointer[i] = i;
-
-	std::stack<int> Sl;
-	for (int i = 0; i < count; i++) {
-		while (!Sl.empty() && levels[i] <= levels[Sl.top()]) {
-			Sl.pop();
-		}
-
-		if (!Sl.empty()) {
-			vleft[i] = Sl.top();
-		} else {
-			vleft[i] = -1;
-		}
-		Sl.push(i);
-	}
-
-	std::stack<int> Sr;
-	for (int i = count-1; i >= 0; i--) {
-		while (!Sr.empty() && levels[i] <= levels[Sr.top()]) {
-			Sr.pop();
-		}
-
-		if (!Sr.empty()) {
-			vright[i] = Sr.top();
-		} else {
-			vright[i] = -1;
-		}
-		Sr.push(i);
-	}
-
-	int root_pos = -1;
-	std::fill(exists, exists+count, true);
-	for (int i = 0; i < count; i++) {
-		parent[i] = -1;
-		if (vleft[i] == -1 && vright[i] == -1) { //root
-			if (root_pos == -1) {
-				root_pos = i;
-			}
-		} else if (vleft[i] == -1) {
-			parent[i] = vright[i];
-		} else if (vright[i] == -1) {
-			parent[i] = pointer[vleft[i]];
-		} else {
-			if (levels[vleft[i]] >= levels[vright[i]]) {
-				parent[i] = pointer[vleft[i]];
-				if (levels[vleft[i]] == levels[vright[i]]) { // deals with non-binary nodes
-					pointer[vright[i]] = pointer[vleft[i]];
-					exists[vright[i]] = false;
-				}
-			} else {
-				parent[i] = pointer[vright[i]];
-			}
-		}
-	}
-
-	Tree* new_tree = new Tree(count*2);
-	Tree::Node* nullp = NULL;
-	std::fill(tree_nodes, tree_nodes+count, nullp);
-	for (int i = 0; i < count; i++) {
-		// create node
-		if (i%2 == 0 || exists[i]) {
-			if (tree_nodes[i] == NULL) {
-				if (i%2 == 0) { //a leaf
-					tree_nodes[i] = new_tree->add_node(marked[i/2]);
-				} else {
-					tree_nodes[i] = new_tree->add_node();
-				}
-			}
-			tree_nodes[i]->weight = tree->get_node(ids[i])->weight;
-			tree_nodes[i]->secondary_id = ids[i];
-		}
-
-		// connect to parent
-		if (tree_nodes[i] != NULL && parent[i] != -1) {
-			if (tree_nodes[parent[i]] == NULL) {
-				tree_nodes[parent[i]] = new_tree->add_node();
-			}
-			tree_nodes[parent[i]]->add_child(tree_nodes[i]);
-		}
-	}
-
-	// insert special nodes
-	size_t newtree_nodes = new_tree->get_nodes_num();
-	for (size_t i = 0; i < newtree_nodes; i++) {
-		Tree::Node* curr_node = new_tree->get_node(i);
-
-		if (curr_node->is_root()) continue;
-
-		Tree::Node* desc_par = tree->get_node(curr_node->secondary_id)->parent;
-		int msq = max_subpath_query(subpq_info, curr_node->parent, desc_par);
-		if (msq > 0) {
-			Tree::Node* sp_node = new_tree->add_node();
-			sp_node->weight = msq;
-			sp_node->secondary_id = curr_node->parent->secondary_id;
-			curr_node->parent->null_child(curr_node->pos_in_parent);
-			curr_node->parent->add_child(sp_node);
-			sp_node->add_child(curr_node);
-		}
-	}
-	new_tree->fix_tree(tree_nodes[root_pos]);
-
-	return new_tree;
-}
-
-
-Tree* orig_t2 = NULL; // TODO: temporary
-bool is_special(Tree::Node* node) {
-	return node->size < orig_t2->get_node(node->secondary_id)->size;
-}
-void filter_clusters_nlog2n(Tree::Node* t1_root, Tree* tree2, taxas_ranges_t* t1_tr, lca_t* t2_lcas, lca_t* orig_t2_lcas,
-		bool* to_del) {
-
-	std::priority_queue<std::pair<int, int> > BTw;
-
-	Tree::Node* curr = t1_root;
-	while (!curr->is_leaf()) {
-		curr = curr->children[0];
-	}
-
-	int beta = 0;
-
-	Tree::Node* rim1 = tree2->get_leaf(curr->taxa);
-	curr = curr->parent;
-	Tree::Node* p_2 = curr;
-
-	/* Handle side trees */
-	int p_index = 0;
-
-	// build sorted sets of leaves
-	leaf_p_index[t1_tr->taxas[t1_tr->intervals[t1_root->id].start]] = -1; // p_1 must be ignored
-
-	std::vector<Tree::Node*> st_roots;
-	while (curr != t1_root->parent) {
-		for (size_t i = 1; i < curr->get_children_num(); i++) {
-			Tree::Node* child = curr->children[i];
-			for (int j = t1_tr->intervals[child->id].start; j <= t1_tr->intervals[child->id].end; j++) {
-				leaf_p_index[t1_tr->taxas[j]] = p_index;
-			}
-			st_roots.push_back(child);
-
-			p_index++;
-		}
-		curr = curr->parent;
-	}
-	taxas_ranges_t* t2_tr = build_taxas_ranges(tree2);
-	std::vector<int>* leaves_sets = new std::vector<int>[p_index];
-	for (size_t i = 0; i < t2_tr->taxas_num; i++) {
-		if (leaf_p_index[t2_tr->taxas[i]] >= 0) {
-			leaves_sets[leaf_p_index[t2_tr->taxas[i]]].push_back(t2_tr->taxas[i]);
-		}
-	}
-
-	// build restrictions and recurse
-	for (int i = 0; i < p_index; i++) {
-		if (leaves_sets[i].size() > 1) {
-			Tree* contracted = contract_tree_fast(orig_t2, orig_t2_lcas, leaves_sets[i]);
-			lca_t* lca_ct2 = lca_preprocess(contracted);
-			filter_clusters_nlog2n(st_roots[i], contracted, t1_tr, lca_ct2, orig_t2_lcas, to_del);
-			delete lca_ct2;
-			delete contracted;
-		}
-	}
-	delete t2_tr;
-	delete[] leaves_sets;
-
-	std::fill(BT, BT+tree2->get_nodes_num(), false);
-	std::fill(counter, counter+tree2->get_nodes_num(), 0);
-
-	// T_2[p_1] should is "initialized" separately
-	counter[rim1->parent->id] = 1;
-	rim1 = rim1->parent;
-
-	/* Handle centroid path */
-	int curr_t1_start = t1_tr->intervals[t1_root->id].start + 1;
-	curr = p_2;
-	while (curr != t1_root->parent) {
-		int curr_t1_end = t1_tr->intervals[curr->id].end;
-
-		Tree::Node* ri = rim1;
-		for (int i = curr_t1_start; i <= curr_t1_end; i++) {
-			ri = tree2->get_node(lca(t2_lcas, ri->id, tree2->get_leaf(t1_tr->taxas[i])->id));
-		}
-
-		if (counter[rim1->id] == rim1->size && ri != rim1 && rim1->get_children_num() != 1) {
-			// if children of rim1 are all "marked", should not go into BT
-			counter[rim1->parent->id] += rim1->size;
-			if (rim1->weight > beta && is_special(rim1)) beta = rim1->weight;
-			rim1 = rim1->parent;
-		}
-		while (rim1 != ri) {
-			BT[rim1->id] = true;
-			BTw.push(std::make_pair(rim1->weight, rim1->id));
-			if (rim1->weight > beta && is_special(rim1)) beta = rim1->weight;
-			rim1 = rim1->parent;
-		}
-
-		for (int i = curr_t1_start; i <= curr_t1_end; i++) {
-			Tree::Node* x = tree2->get_leaf(t1_tr->taxas[i]);
-			while (!BT[x->id] && x != ri) {
-				BT[x->id] = true;
-				BTw.push(std::make_pair(x->weight, x->id));
-				if (x->weight > beta && is_special(x)) beta = x->weight; // TODO: and is special node
-				x = x->parent;
-			}
-		}
-		for (int i = curr_t1_start; i <= curr_t1_end; i++) {
-			Tree::Node* x = tree2->get_leaf(t1_tr->taxas[i]);
-			counter[x->id]++;
-			while (x != ri && counter[x->id] == x->size && !is_special(x)) { // TODO: check
-				counter[x->parent->id] += x->size;
-				BT[x->id] = false;
-				x = x->parent;
-			}
-		}
-
-		std::pair<int, int> top;
-		while (!BTw.empty()) {
-
-			top = BTw.top();
-			if (BT[top.second]) break;
-			BTw.pop();
-		}
-		int M = BTw.empty() ? 0 : top.first;
-		if (curr->weight <= std::max(M, beta)) {
-			to_del[curr->id] = true;
-		}
-
-		curr = curr->parent;
-		curr_t1_start = curr_t1_end + 1;
-	}
-}
-
 
 void compute_m(Tree::Node* node, int* e, int* m, std::vector<Tree::Node*>* rsort_lists) {
 	if (node->is_leaf()) {
@@ -1069,9 +732,7 @@ boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root
     return roots;
 }
 
-void filter_clusters_nlogn(Tree* T_A, Tree* T_B, lca_t* lca_T_B, bool* to_del_T_A) {
-    RMQ* rmq_T_B = new RMQ(T_B, lca_T_B);
-
+void filter_clusters_nlogn(Tree* T_A, Tree* T_B, RMQ* rmq_T_B, bool* to_del_T_A) {
     filter_clusters_nlogn_helper(T_A->get_root(), T_B, rmq_T_B, to_del_T_A);
 }
 
@@ -1110,18 +771,17 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 	}
 
     calc_w_knlogn(trees);
-
-    // TODO: Move inside filter clusters maybe?
+    
     lca_t** lca_preps = new lca_t*[trees.size()];
-	for (size_t i = 0; i < trees.size(); i++) {
-		lca_preps[i] = lca_preprocess(trees[i]);
-	}
+    for (size_t i = 0; i < trees.size(); i++) {
+        lca_preps[i] = lca_preprocess(trees[i]);
+    }
 
-	subpath_query_info_t** subpath_query_ti = NULL;
+	RMQ** rmqs = NULL;
 	if (centroid_paths) {
-		subpath_query_ti = new subpath_query_info_t*[trees.size()];
+		rmqs = new RMQ*[trees.size()];
 		for (size_t i = 0; i < trees.size(); i++) {
-			subpath_query_ti[i] = preprocess_subpaths_queries(trees[i]);
+            rmqs[i] = new RMQ(trees[i], lca_preps[i]);
 		}
 	}
     
@@ -1130,27 +790,21 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 		Tree* Ti = new Tree(trees[i]);
 		taxas_ranges_t* tr_Ti = build_taxas_ranges(Ti);
 
-		taxas_ranges_t* tr_T = NULL;
-		tr_T = build_taxas_ranges(T);
-
+        taxas_ranges_t* tr_T = build_taxas_ranges(T);
 		lca_t* lca_T = lca_preprocess(T);
 
 		// filter clusters
 		std::fill(to_del_ti, to_del_ti+Ti->get_nodes_num(), false);
 		if (centroid_paths) {
-			orig_t2 = T; // TODO: temporary
-			subpq_info = preprocess_subpaths_queries(T);
-			filter_clusters_nlog2n(Ti->get_root(), T, tr_Ti, lca_T, lca_T, to_del_ti);
-			delete subpq_info;
+            RMQ* rmq_T = new RMQ(T, lca_T);
+            filter_clusters_nlogn(Ti, T, rmq_T, to_del_ti);
 		} else {
 			filter_clusters_n2(Ti, T, tr_Ti, tr_T, lca_T, to_del_ti);
 		}
 
 		std::fill(to_del_t, to_del_t+T->get_nodes_num(), false);
 		if (centroid_paths) {
-			orig_t2 = Ti; // TODO: temporary
-			subpq_info = subpath_query_ti[i];
-			filter_clusters_nlog2n(T->get_root(), Ti, tr_T, lca_preps[i], lca_preps[i], to_del_t);
+            filter_clusters_nlogn(T, Ti, rmqs[i], to_del_t);
 		} else {
 			filter_clusters_n2(T, Ti, tr_T, tr_Ti, lca_preps[i], to_del_t);
 		}
@@ -1169,12 +823,6 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 
 		delete lca_T;
 		delete tr_Ti;
-
-		// reset secondary ids
-		for (size_t j = 0; j < T->get_nodes_num(); j++) {
-			T->get_node(j)->secondary_id = T->get_node(j)->id;
-		}
-
 		delete Ti;
 	}
 
@@ -1182,9 +830,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 	taxas_ranges_t* tr_T = build_taxas_ranges(T);
 	for (size_t i = 0; i < trees.size(); i++) {
 		if (centroid_paths) {
-			orig_t2 = trees[i];
-			subpq_info = subpath_query_ti[i];
-			filter_clusters_nlog2n(T->get_root(), trees[i], tr_T, lca_preps[i], lca_preps[i], to_del_t);
+            filter_clusters_nlogn(T, trees[i], rmqs[i], to_del_t);
 		} else {
 			taxas_ranges_t* tr_Ti = build_taxas_ranges(trees[i]);
 			filter_clusters_n2(T, trees[i], tr_T, tr_Ti, lca_preps[i], to_del_t);
@@ -1217,9 +863,9 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 
 	if (centroid_paths) {
 		for (size_t i = 0; i < trees.size(); i++) {
-			delete subpath_query_ti[i];
+			delete rmqs[i];
 		}
-		delete[] subpath_query_ti;
+        delete[] rmqs;
 	}
 
 	return T;
