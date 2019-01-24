@@ -124,13 +124,13 @@ int RMQ::preprocess_child_for_leaf_helper(Tree::Node* node, int first_available_
     heaviest_child[node->id] = node->children[0];
     
     std::vector<Tree::Node*> child_for_leaf = std::vector<Tree::Node*>();
-    int current_leaf_index = 0;
+    
     for (int i = 1; i < node->get_children_num(); i++) {
         int new_first_available_index = preprocess_child_for_leaf_helper(node->children[i], first_available_index);
         
         // Point each leaf to the child it is a descendant of
         // Offset the leaf index by the smallest index in the side trees
-        for (; current_leaf_index < new_first_available_index - first_available_index; current_leaf_index++) {
+        for (int current_leaf_index = 0; current_leaf_index < new_first_available_index - first_available_index; current_leaf_index++) {
             child_for_leaf.push_back(node->children[i]);
         }
         
