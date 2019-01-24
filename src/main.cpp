@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 
 	Tree* consensus;
 	if (algo == "freq") {
-		consensus = freqdiff(trees, Tree::get_taxas_num() > 1000);
+		consensus = freqdiff(trees, Tree::get_taxas_num() > 1);
 	} else if (algo == "minrlc_exact") {
 		consensus = minRLC_exact(trees);
 	} else if (algo == "minilc_exact") {

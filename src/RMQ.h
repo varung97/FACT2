@@ -34,25 +34,26 @@ private:
     // Pointers from each node to the rmq for some leaf in its leafset
     std::vector<gen_rmq_t*> leaf_rmq_for_nodes;
     
-    // Numbering leaves left to right, leftmost and rightmost leaves in subtree
-    std::vector<int> left_most_leaf, right_most_leaf;
+    // Numbering leaves from left to right, pointer to the leftmost leaf in the subtree of each node
+    std::vector<Tree::Node*> left_most_leaf;
     
-    // For each centroid path, store a rank structure containing, for each node, the leftmost leaf index in its side trees
-    // Note that these are offset to the index of the leftmost leaf in the centroid path to save space
-    std::vector<sdsl::rank_support_v<1>> min_leaf_idx_in_side_trees_cps_ranks;
+    // Numbering leaves from left to right, index of each leaf
+    std::vector<int> taxa_l2r_indices;
     
-    // For each internal node, store a rank structure containing leftmost leaf indices for all children except heaviest child
-    // Note that these are offset to the leftmost leaf index of the second child to save space
-    std::vector<sdsl::rank_support_v<1>> min_leaf_idx_children_ranks;
+    // For each node, for each leaf, a pointer to the child of the node that is an ancestor of the leaf
+    std::vector<std::vector<Tree::Node*>> child_for_leaf_vectors;
+    
+    // Index of smallest leaf in side trees of node
+    std::vector<int> child_for_leaf_offset;
+    
+    // Pointer to the heaviest child of each node
+    std::vector<Tree::Node*> heaviest_child;
     
     void preprocess_depths(Tree* tree);
     void preprocess_centroid_paths(Tree* tree);
     void preprocess_leaf_rmqs(Tree* tree);
-    int preprocess_left_right_most_leaf_helper(Tree::Node* node, int first_available_index);
-    void preprocess_left_right_most_leaf(Tree* tree);
-    void populate_min_leaf_idx_in_side_trees_cps(Tree* tree);
-    void populate_min_leaf_idx_children(Tree* tree);
-    void preprocess_leaf_rank_structures(Tree* tree);
+    int preprocess_child_for_leaf_helper(Tree::Node* node, int first_available_index);
+    void preprocess_child_for_leaf(Tree* tree);
     
     int rmq_q1(Tree::Node* v, Tree::Node* w);
     int rmq_q2_qg1(Tree::Node* v, Tree::Node*w);
