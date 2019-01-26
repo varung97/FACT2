@@ -642,6 +642,30 @@ void calc_w_knlogn(std::vector<Tree*>& trees) {
     }
 }
 
+// Removes a node from the heap and erases its heap handle
+void remove_from_heap_if_inside(boost::heap::fibonacci_heap<int>* heap, std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>* heap_handles, Tree::Node* v) {
+    if (heap_handles->find(v->id) == heap_handles->end()) {
+        return;
+    }
+
+    // Increase-key then delete-max
+    heap->increase(heap_handles->at(v->id), heap->top() + 1);
+    heap->pop();
+    heap_handles->erase(v->id);
+}
+
+// Puts the maximum weight on the path from v to w into the heap, where the path excludes v and w
+// If v was already in the heap, deletes old entry
+void push_max_weight_into_heap(boost::heap::fibonacci_heap<int>* heap, std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>* heap_handles, Tree::Node* v, Tree::Node* w, RMQ* rmq) {
+    if (v->parent == w) {
+        // Path is empty
+        return;
+    }
+
+    remove_from_heap_if_inside(heap, heap_handles, v);
+    heap_handles->insert({v->id, heap->push(rmq->max_weight_path(v->parent, w))});
+}
+
 // Returns rootsOfSubtrees(\leafset(T_A))
 boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root_T_A, Tree* T_B, RMQ* rmq_T_B, bool* to_del_T_A) {
     Tree::Node* curr = root_T_A;
@@ -664,6 +688,7 @@ boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root
 
     // First lca, leaf in T_B labelled by leaf in T_A
     Tree::Node* l_i = T_B->get_leaf(curr->taxa);
+    l_i->counter = 0;
     l_i->parent->counter = 1;
     int lower_boundary_counter = -1; // Start at -1 since no lower boundary for leaf
     
@@ -671,12 +696,11 @@ boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root
     boost::unordered_set<Tree::Node*>* roots = new boost::unordered_set<Tree::Node*>({l_i});
     
     // Stores incompatible nodes
-    boost::heap::fibonacci_heap<int> incompatible = boost::heap::fibonacci_heap<int>();
+    boost::heap::fibonacci_heap<int>* incompatible = new boost::heap::fibonacci_heap<int>();
     
     // Stores handles to nodes in the heap
     std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>* heap_handles = new std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>;
 
-    
     while (curr != root_T_A) {
         curr = curr->parent;
         lower_boundary_counter++;
@@ -689,19 +713,16 @@ boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root
         // Add nodes from prev_l_i to l_i
         // Include prev_l_i if incompatible with previous centroid path node
         if (prev_l_i->counter == prev_l_i->get_children_num()) {
-            if (prev_l_i->parent != l_i) {
-                heap_handles->insert({prev_l_i->parent->id, incompatible.push(rmq_T_B->max_weight_path(prev_l_i->parent, l_i))});
-            }
+            push_max_weight_into_heap(incompatible, heap_handles, prev_l_i, l_i, rmq_T_B);
         } else {
-            if (prev_l_i != l_i) {
-                heap_handles->insert({prev_l_i->id, incompatible.push(rmq_T_B->max_weight_path(prev_l_i, l_i))});
-            }
+            push_max_weight_into_heap(incompatible, heap_handles, prev_l_i->children[0], l_i, rmq_T_B);
         }
         
         for (Tree::Node* v : lower_boundaries[lower_boundary_counter]) {
             v->parent->counter++;
             roots->insert(v);
             
+            Tree::Node* prev_v = v;
             v = v->parent;
             
             while (v->counter == v->get_children_num() && v != T_B->get_root()) {
@@ -713,23 +734,19 @@ boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root
                 }
 
                 // If v in incompatible then remove it
-                if (heap_handles->find(v->id) != heap_handles->end()) {
-                    // Increase key then delete-max
-                    incompatible.increase(heap_handles->at(v->id), incompatible.top() + 1);
-                    incompatible.pop();
-                    heap_handles->erase(v->id);
-                }
+                remove_from_heap_if_inside(incompatible, heap_handles, v);
                 
+                prev_v = v;
                 v = v->parent;
             }
             
             // Add max weight from v until l_i to incompatible
-            if (v != l_i && v != l_i->parent) {
-                heap_handles->insert({v->id, incompatible.push(rmq_T_B->max_weight_path(v, l_i))});
+            if (v != l_i->parent) {
+                push_max_weight_into_heap(incompatible, heap_handles, prev_v, l_i, rmq_T_B);
             }
         }
         
-        int max_weight = heap_handles->size() == 0 ? 0 : incompatible.top();
+        int max_weight = heap_handles->size() == 0 ? 0 : incompatible->top();
         if (curr->weight <= max_weight) {
             to_del_T_A[curr->id] = true;
         }
@@ -812,12 +829,15 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 
         taxas_ranges_t* tr_T = build_taxas_ranges(T);
 		lca_t* lca_T = lca_preprocess(T);
+        
+        if (centroid_paths) {
+            T->reorder();
+            Ti->reorder();
+        }
 
 		// filter clusters
 		std::fill(to_del_ti, to_del_ti+Ti->get_nodes_num(), false);
 		if (centroid_paths) {
-            T->reorder();
-            Ti->reorder();
             RMQ* rmq_T = new RMQ(T, lca_T);
             filter_clusters_nlogn(Ti, T, rmq_T, to_del_ti);
 		} else {
@@ -826,8 +846,6 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 
 		std::fill(to_del_t, to_del_t+T->get_nodes_num(), false);
 		if (centroid_paths) {
-            T->reorder();
-            Ti->reorder();
             filter_clusters_nlogn(T, Ti, rmqs[i], to_del_t);
 		} else {
 			filter_clusters_n2(T, Ti, tr_T, tr_Ti, lca_preps[i], to_del_t);
@@ -835,7 +853,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 
 		Ti->delete_nodes(to_del_ti);
 		T->delete_nodes(to_del_t);
-
+        
 		delete lca_T;
 		delete tr_T;
 		delete tr_Ti;
@@ -844,7 +862,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 		tr_Ti = build_taxas_ranges(Ti);
 
 		merge_trees(Ti, T, tr_Ti, lca_T);
-
+        
 		delete lca_T;
 		delete tr_Ti;
 		delete Ti;
