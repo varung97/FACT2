@@ -1,6 +1,5 @@
 #include "Tree.h"
 #include "lca_preprocessing.h"
-#include <sdsl/bit_vectors.hpp>
 
 #include "RMQ.h"
 

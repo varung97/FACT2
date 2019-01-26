@@ -731,11 +731,9 @@ boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root
                 roots->insert(v);
                 for (Tree::Node* child : v->children) {
                     roots->erase(child);
+                    remove_from_heap_if_inside(incompatible, heap_handles, child);
                 }
 
-                // If v in incompatible then remove it
-                remove_from_heap_if_inside(incompatible, heap_handles, v);
-                
                 prev_v = v;
                 v = v->parent;
             }

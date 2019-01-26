@@ -1,8 +1,6 @@
 #ifndef RMQ_H_
 #define RMQ_H_
 
-#include <sdsl/bit_vectors.hpp>
-
 class RMQ {
 public:
     // Tree must be ordered such that for any node, the first child is the one with largest leafset
