@@ -735,7 +735,7 @@ void merge_trees(Tree* tree1, Tree* tree2, taxas_ranges_t* t1_tr, lca_t* t2_lcas
 	delete t2_tr;
 }
 
-Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
+Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths, bool weights_only) {
 
 	start = new int[Tree::get_taxas_num()*2];
 	stop = new int[Tree::get_taxas_num()*2];
@@ -779,6 +779,8 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 		trees[i]->reorder();
 	}
 	calc_w_kn2(trees);
+
+	if (weights_only) return NULL;
 
 	lca_t** lca_preps = new lca_t*[trees.size()];
 	for (size_t i = 0; i < trees.size(); i++) {
