@@ -429,41 +429,41 @@ bool mark_lcas(Tree::Node* node, std::vector<bool>* is_marked_leaf, std::vector<
 
 // Builds the subtree of tree restricted to some leaves given marked lcas
 Tree::Node* build_restricted_subtree(Tree* tree, Tree::Node* root, std::vector<bool>* is_lca, std::vector<Tree::Node*>* assoc_nodes) {
-    bool root_is_lca = is_lca->at(root->id);
-    
-    if (root->is_leaf()) {
-        if (root_is_lca) {
-            // If root is a marked leaf then create new node
-            // Leaves are labelled with 1, this is only useful for trees with a single leaf
-            return assoc_nodes->at(root->id) = tree->add_node(root->taxa, 1);
-        } else {
-            // Else no subtree
-            return NULL;
-        }
-    }
+	bool root_is_lca = is_lca->at(root->id);
 
-    // If there is only one child with non-NULL subtree, then we can just return that subtree
-    // If more than one child have non-NULL subtrees, then root is an lca and we need to connect each of these subtrees to the node
-    Tree::Node* node = root_is_lca ? tree->add_node() : NULL;
-    for (Tree::Node* child : root->children) {
-        Tree::Node* child_subtree = build_restricted_subtree(tree, child, is_lca, assoc_nodes);
-        
-        if (child_subtree != NULL) {
-            if (root_is_lca) {
-                node->add_child(child_subtree);
-            } else {
-                assoc_nodes->at(root->id) = child_subtree;
-                return child_subtree;
-            }
-        }
-    }
-    
-    // At this point, either root is an lca or has no subtree
-    if (root_is_lca) {
-        return assoc_nodes->at(root->id) = node;
-    } else {
-        return NULL;
-    }
+	if (root->is_leaf()) {
+		if (root_is_lca) {
+			// If root is a marked leaf then create new node
+			// Leaves are labelled with 1, this is only useful for trees with a single leaf
+			return assoc_nodes->at(root->id) = tree->add_node(root->taxa, 1);
+		} else {
+			// Else no subtree
+			return NULL;
+		}
+	}
+
+	// If there is only one child with non-NULL subtree, then we can just return that subtree
+	// If more than one child have non-NULL subtrees, then root is an lca and we need to connect each of these subtrees to the node
+	Tree::Node* node = root_is_lca ? tree->add_node() : NULL;
+	for (Tree::Node* child : root->children) {
+		Tree::Node* child_subtree = build_restricted_subtree(tree, child, is_lca, assoc_nodes);
+
+		if (child_subtree != NULL) {
+			if (root_is_lca) {
+				node->add_child(child_subtree);
+			} else {
+				assoc_nodes->at(root->id) = child_subtree;
+				return child_subtree;
+			}
+		}
+	}
+
+	// At this point, either root is an lca or has no subtree
+	if (root_is_lca) {
+		return assoc_nodes->at(root->id) = node;
+	} else {
+		return NULL;
+	}
 }
 
 // Builds the subtree of tree restricted to marked_leaves
@@ -474,312 +474,312 @@ Tree* restricted_subtree(Tree* tree, std::vector<int>* marked_taxa, std::vector<
 	std::vector<bool> is_lca(tree->get_nodes_num(), false);
 	std::vector<bool> is_marked_leaf(tree->get_nodes_num(), false);
 
-    for (int taxon : *marked_taxa) {
+	for (int taxon : *marked_taxa) {
 		is_marked_leaf[tree->get_leaf(taxon)->id] = true;
 	}
 
 	mark_lcas(tree->get_root(), &is_marked_leaf, &is_lca);
 
 	// Build new tree with only lcas
-    Tree* new_tree = new Tree(std::count(is_lca.begin(), is_lca.end(), true));
-    Tree::Node* root = build_restricted_subtree(new_tree, tree->get_root(), &is_lca, assoc_nodes);
-    new_tree->fix_tree(root);
-    
-    return new_tree;
+	Tree* new_tree = new Tree(std::count(is_lca.begin(), is_lca.end(), true));
+	Tree::Node* root = build_restricted_subtree(new_tree, tree->get_root(), &is_lca, assoc_nodes);
+	new_tree->fix_tree(root);
+
+	return new_tree;
 }
 
 // Stably counting sorts elements of a vector along axis given by index
 std::vector<std::vector<int>> counting_sort(std::vector<std::vector<int>>& vector, int index) {
-    // Asummed to be non-negative
-    int max_label = 0;
-    for (int i = 0; i < vector.size(); i++) {
-        max_label = max_label > vector[i][index] ? max_label : vector[i][index];
-    }
-    
-    // Each bucket will hold a list of elements
-    std::vector<std::vector<std::vector<int>>> buckets(max_label + 1);
-    
-    // Bucketize
-    for (int i = 0; i < vector.size(); i++) {
-        buckets[vector[i][index]].push_back(vector[i]);
-    }
-    
-    std::vector<std::vector<int>> sorted_vector;
-    
-    // Reassemble
-    for (int i = 0; i < buckets.size(); i++) {
-        for (int j = 0; j < buckets[i].size(); j++) {
-            sorted_vector.push_back(buckets[i][j]);
-        }
-    }
+	// Asummed to be non-negative
+	int max_label = 0;
+	for (int i = 0; i < vector.size(); i++) {
+		max_label = max_label > vector[i][index] ? max_label : vector[i][index];
+	}
 
-    return sorted_vector;
+	// Each bucket will hold a list of elements
+	std::vector<std::vector<std::vector<int>>> buckets(max_label + 1);
+
+	// Bucketize
+	for (int i = 0; i < vector.size(); i++) {
+		buckets[vector[i][index]].push_back(vector[i]);
+	}
+
+	std::vector<std::vector<int>> sorted_vector;
+
+	// Reassemble
+	for (int i = 0; i < buckets.size(); i++) {
+		for (int j = 0; j < buckets[i].size(); j++) {
+			sorted_vector.push_back(buckets[i][j]);
+		}
+	}
+
+	return sorted_vector;
 }
 
 // Labels tree using the labels of the associated nodes in the restricted subtrees
 void label_trees_using_assoc_nodes(std::vector<Tree*> trees, std::vector<std::vector<Tree::Node*>>& assoc_nodes_vector1, std::vector<std::vector<Tree::Node*>>& assoc_nodes_vector2) {
-    // A label pair looks like (left_label, right_label, tree_index, node_id)
-    std::vector<std::vector<int>> label_pairs;
-    
-    for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
-        for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
-            label_pairs.push_back({assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id});
-        }
-    }
+	// A label pair looks like (left_label, right_label, tree_index, node_id)
+	std::vector<std::vector<int>> label_pairs;
 
-    // Stable counting sort along each of the labels
-    label_pairs = counting_sort(label_pairs, 1);
-    label_pairs = counting_sort(label_pairs, 0);
-    
-    // Identical nodes stores (tree_index, node_id) of identical nodes
-    std::vector<std::vector<int>> identical_nodes;
-    int label = 1;
-    
-    for (int i = 0; i <= label_pairs.size(); i++) {
-        // If identical nodes is not empty and this pair is different from the previous one then label the identical nodes
-        // Also do so if i == label_pairs.size() since there are no more pairs to be checked
-        if (i == label_pairs.size() ||
-            (!identical_nodes.empty() &&
-             (label_pairs[i - 1][0] != label_pairs[i][0] || label_pairs[i - 1][1] != label_pairs[i][1])
-             )
-            ) {
+	for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
+		for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
+			label_pairs.push_back({assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id});
+		}
+	}
 
-            for (int j = 0; j < identical_nodes.size(); j++) {
-                trees[identical_nodes[j][0]]->get_node(identical_nodes[j][1])->label = label;
-            }
-            
-            label++;
-            identical_nodes.clear();
-        }
-        
-        if (i < label_pairs.size()) {
-            identical_nodes.push_back({label_pairs[i][2], label_pairs[i][3]});
-        }
-    }
+	// Stable counting sort along each of the labels
+	label_pairs = counting_sort(label_pairs, 1);
+	label_pairs = counting_sort(label_pairs, 0);
+
+	// Identical nodes stores (tree_index, node_id) of identical nodes
+	std::vector<std::vector<int>> identical_nodes;
+	int label = 1;
+
+	for (int i = 0; i <= label_pairs.size(); i++) {
+		// If identical nodes is not empty and this pair is different from the previous one then label the identical nodes
+		// Also do so if i == label_pairs.size() since there are no more pairs to be checked
+		if (i == label_pairs.size() ||
+			(!identical_nodes.empty() &&
+			 (label_pairs[i - 1][0] != label_pairs[i][0] || label_pairs[i - 1][1] != label_pairs[i][1])
+			 )
+			) {
+
+			for (int j = 0; j < identical_nodes.size(); j++) {
+				trees[identical_nodes[j][0]]->get_node(identical_nodes[j][1])->label = label;
+			}
+
+			label++;
+			identical_nodes.clear();
+		}
+
+		if (i < label_pairs.size()) {
+			identical_nodes.push_back({label_pairs[i][2], label_pairs[i][3]});
+		}
+	}
 }
 
 // Divide marked_leaves into 2 parts and recursively label
 void label_trees_helper(std::vector<Tree*>& trees, std::vector<int>& marked_taxa) {
-    if (marked_taxa.size() == 1) {
-        return;
-    }
-    
-    std::vector<int> marked_taxa1, marked_taxa2;
-    
-    int i = 0;
-    for (; i < marked_taxa.size() / 2; i++) {
-        marked_taxa1.push_back(marked_taxa[i]);
-    }
-    for (; i < marked_taxa.size(); i++) {
-        marked_taxa2.push_back(marked_taxa[i]);
-    }
-    
-    std::vector<Tree*> trees1, trees2;
-    std::vector<std::vector<Tree::Node*>> assoc_nodes_vector1, assoc_nodes_vector2;
-    
-    for (Tree* tree : trees) {
-        // Default assoc node is the empty node, representing no marked taxa in leafset
-        std::vector<Tree::Node*> assoc_nodes1(tree->get_nodes_num(), &empty_node);
-        std::vector<Tree::Node*> assoc_nodes2(tree->get_nodes_num(), &empty_node);
+	if (marked_taxa.size() == 1) {
+		return;
+	}
 
-        trees1.push_back(restricted_subtree(tree, &marked_taxa1, &assoc_nodes1));
-        trees2.push_back(restricted_subtree(tree, &marked_taxa2, &assoc_nodes2));
-        
-        assoc_nodes_vector1.push_back(assoc_nodes1);
-        assoc_nodes_vector2.push_back(assoc_nodes2);
-    }
-    
-    label_trees_helper(trees1, marked_taxa1);
-    label_trees_helper(trees2, marked_taxa2);
-    
-    label_trees_using_assoc_nodes(trees, assoc_nodes_vector1, assoc_nodes_vector2);
+	std::vector<int> marked_taxa1, marked_taxa2;
+
+	int i = 0;
+	for (; i < marked_taxa.size() / 2; i++) {
+		marked_taxa1.push_back(marked_taxa[i]);
+	}
+	for (; i < marked_taxa.size(); i++) {
+		marked_taxa2.push_back(marked_taxa[i]);
+	}
+
+	std::vector<Tree*> trees1, trees2;
+	std::vector<std::vector<Tree::Node*>> assoc_nodes_vector1, assoc_nodes_vector2;
+
+	for (Tree* tree : trees) {
+		// Default assoc node is the empty node, representing no marked taxa in leafset
+		std::vector<Tree::Node*> assoc_nodes1(tree->get_nodes_num(), &empty_node);
+		std::vector<Tree::Node*> assoc_nodes2(tree->get_nodes_num(), &empty_node);
+
+		trees1.push_back(restricted_subtree(tree, &marked_taxa1, &assoc_nodes1));
+		trees2.push_back(restricted_subtree(tree, &marked_taxa2, &assoc_nodes2));
+
+		assoc_nodes_vector1.push_back(assoc_nodes1);
+		assoc_nodes_vector2.push_back(assoc_nodes2);
+	}
+
+	label_trees_helper(trees1, marked_taxa1);
+	label_trees_helper(trees2, marked_taxa2);
+
+	label_trees_using_assoc_nodes(trees, assoc_nodes_vector1, assoc_nodes_vector2);
 }
 
 // Labels nodes in the trees, giving identical labels to nodes with identical leafsets
 void label_trees(std::vector<Tree*>& trees) {
-    std::vector<int> marked_taxa;
-    for (int i = 0; i < Tree::get_taxas_num(); i++) {
-        marked_taxa.push_back(i);
-    }
-    
-    label_trees_helper(trees, marked_taxa);
+	std::vector<int> marked_taxa;
+	for (int i = 0; i < Tree::get_taxas_num(); i++) {
+		marked_taxa.push_back(i);
+	}
+
+	label_trees_helper(trees, marked_taxa);
 }
 
 void calc_w_knlogn(std::vector<Tree*>& trees) {
-    label_trees(trees);
-    
-    // A label looks like (label, tree_index, node_id)
-    std::vector<std::vector<int>> labels;
-    
-    for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
-        for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
-            labels.push_back({trees[tree_index]->get_node(node_id)->label, tree_index, node_id});
-        }
-    }
-    
-    labels = counting_sort(labels, 0);
-    
-    // Identical nodes stores (tree_index, node_id) of identical nodes
-    std::vector<std::vector<int>> identical_nodes;
-    
-    for (int i = 0; i <= labels.size(); i++) {
-        // If identical nodes is not empty and this label is different from the previous one then compute freq for the identical nodes
-        // Also do so if i == labels.size() since there are no more labels to be checked
-        if (i == labels.size() ||
-            (!identical_nodes.empty() && labels[i - 1][0] != labels[i][0])
-            ) {
+	label_trees(trees);
 
-            for (int j = 0; j < identical_nodes.size(); j++) {
-                trees[identical_nodes[j][0]]->get_node(identical_nodes[j][1])->weight = identical_nodes.size();
-            }
-            
-            identical_nodes.clear();
-        }
-        
-        if (i < labels.size()) {
-            identical_nodes.push_back({labels[i][1], labels[i][2]});
-        }
-    }
+	// A label looks like (label, tree_index, node_id)
+	std::vector<std::vector<int>> labels;
+
+	for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
+		for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
+			labels.push_back({trees[tree_index]->get_node(node_id)->label, tree_index, node_id});
+		}
+	}
+
+	labels = counting_sort(labels, 0);
+
+	// Identical nodes stores (tree_index, node_id) of identical nodes
+	std::vector<std::vector<int>> identical_nodes;
+
+	for (int i = 0; i <= labels.size(); i++) {
+		// If identical nodes is not empty and this label is different from the previous one then compute freq for the identical nodes
+		// Also do so if i == labels.size() since there are no more labels to be checked
+		if (i == labels.size() ||
+			(!identical_nodes.empty() && labels[i - 1][0] != labels[i][0])
+			) {
+
+			for (int j = 0; j < identical_nodes.size(); j++) {
+				trees[identical_nodes[j][0]]->get_node(identical_nodes[j][1])->weight = identical_nodes.size();
+			}
+
+			identical_nodes.clear();
+		}
+
+		if (i < labels.size()) {
+			identical_nodes.push_back({labels[i][1], labels[i][2]});
+		}
+	}
 }
 
 // Removes a node from the heap and erases its heap handle
 void remove_from_heap_if_inside(boost::heap::fibonacci_heap<int>* heap, std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>* heap_handles, Tree::Node* v) {
-    if (heap_handles->find(v->id) == heap_handles->end()) {
-        return;
-    }
+	if (heap_handles->find(v->id) == heap_handles->end()) {
+		return;
+	}
 
-    // Increase-key then delete-max
-    heap->increase(heap_handles->at(v->id), heap->top() + 1);
-    heap->pop();
-    heap_handles->erase(v->id);
+	// Increase-key then delete-max
+	heap->increase(heap_handles->at(v->id), heap->top() + 1);
+	heap->pop();
+	heap_handles->erase(v->id);
 }
 
 // Puts the maximum weight on the path from v to w into the heap, where the path excludes v and w
 // If v was already in the heap, deletes old entry
 void push_max_weight_into_heap(boost::heap::fibonacci_heap<int>* heap, std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>* heap_handles, Tree::Node* v, Tree::Node* w, RMQ* rmq) {
-    if (v->parent == w) {
-        // Path is empty
-        return;
-    }
+	if (v->parent == w) {
+		// Path is empty
+		return;
+	}
 
-    remove_from_heap_if_inside(heap, heap_handles, v);
-    heap_handles->insert({v->id, heap->push(rmq->max_weight_path(v->parent, w))});
+	remove_from_heap_if_inside(heap, heap_handles, v);
+	heap_handles->insert({v->id, heap->push(rmq->max_weight_path(v->parent, w))});
 }
 
 // Returns rootsOfSubtrees(\leafset(T_A))
 boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root_T_A, Tree* T_B, RMQ* rmq_T_B, bool* to_del_T_A) {
-    Tree::Node* curr = root_T_A;
-    std::vector<boost::unordered_set<Tree::Node*>> lower_boundaries = std::vector<boost::unordered_set<Tree::Node*>>();
-    
-    // recursively call filter_clusters on side trees and build up lower boundaries
-    while (!curr->is_leaf()) {
-        boost::unordered_set<Tree::Node*> lower_boundary = boost::unordered_set<Tree::Node*>();
+	Tree::Node* curr = root_T_A;
+	std::vector<boost::unordered_set<Tree::Node*>> lower_boundaries = std::vector<boost::unordered_set<Tree::Node*>>();
 
-        for (int i = 1; i < curr->get_children_num(); i++) {
-            lower_boundary.merge(*filter_clusters_nlogn_helper(curr->children[i], T_B, rmq_T_B, to_del_T_A));
-        }
-        
-        lower_boundaries.push_back(lower_boundary);
-        curr = curr->children[0];
-    }
+	// recursively call filter_clusters on side trees and build up lower boundaries
+	while (!curr->is_leaf()) {
+		boost::unordered_set<Tree::Node*> lower_boundary = boost::unordered_set<Tree::Node*>();
 
-    // Was built top to bottom, but more convenient in the other direction
-    std::reverse(lower_boundaries.begin(), lower_boundaries.end());
+		for (int i = 1; i < curr->get_children_num(); i++) {
+			lower_boundary.merge(*filter_clusters_nlogn_helper(curr->children[i], T_B, rmq_T_B, to_del_T_A));
+		}
 
-    // First lca, leaf in T_B labelled by leaf in T_A
-    Tree::Node* l_i = T_B->get_leaf(curr->taxa);
-    l_i->counter = 0;
-    l_i->parent->counter = 1;
-    int lower_boundary_counter = -1; // Start at -1 since no lower boundary for leaf
-    
-    // Stores rootsOfSubtrees
-    boost::unordered_set<Tree::Node*>* roots = new boost::unordered_set<Tree::Node*>({l_i});
-    
-    // Stores incompatible nodes
-    boost::heap::fibonacci_heap<int>* incompatible = new boost::heap::fibonacci_heap<int>();
-    
-    // Stores handles to nodes in the heap
-    std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>* heap_handles = new std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>;
+		lower_boundaries.push_back(lower_boundary);
+		curr = curr->children[0];
+	}
 
-    while (curr != root_T_A) {
-        curr = curr->parent;
-        lower_boundary_counter++;
-        
-        Tree::Node* prev_l_i = l_i;
-        for (Tree::Node* v : lower_boundaries[lower_boundary_counter]) {
-            l_i = T_B->get_node(lca(rmq_T_B->lca_prep, l_i->id, v->id));
-        }
-        
-        // Add nodes from prev_l_i to l_i
-        // Include prev_l_i if incompatible with previous centroid path node
-        if (prev_l_i->counter == prev_l_i->get_children_num()) {
-            push_max_weight_into_heap(incompatible, heap_handles, prev_l_i, l_i, rmq_T_B);
-        } else {
-            push_max_weight_into_heap(incompatible, heap_handles, prev_l_i->children[0], l_i, rmq_T_B);
-        }
-        
-        for (Tree::Node* v : lower_boundaries[lower_boundary_counter]) {
-            v->parent->counter++;
-            roots->insert(v);
-            
-            Tree::Node* prev_v = v;
-            v = v->parent;
-            
-            while (v->counter == v->get_children_num() && v != T_B->get_root()) {
-                v->parent->counter++;
+	// Was built top to bottom, but more convenient in the other direction
+	std::reverse(lower_boundaries.begin(), lower_boundaries.end());
 
-                roots->insert(v);
-                for (Tree::Node* child : v->children) {
-                    roots->erase(child);
-                    remove_from_heap_if_inside(incompatible, heap_handles, child);
-                }
+	// First lca, leaf in T_B labelled by leaf in T_A
+	Tree::Node* l_i = T_B->get_leaf(curr->taxa);
+	l_i->counter = 0;
+	l_i->parent->counter = 1;
+	int lower_boundary_counter = -1; // Start at -1 since no lower boundary for leaf
 
-                prev_v = v;
-                v = v->parent;
-            }
-            
-            // Add max weight from v until l_i to incompatible
-            if (v != l_i->parent) {
-                push_max_weight_into_heap(incompatible, heap_handles, prev_v, l_i, rmq_T_B);
-            }
-        }
-        
-        int max_weight = heap_handles->size() == 0 ? 0 : incompatible->top();
-        if (curr->weight <= max_weight) {
-            to_del_T_A[curr->id] = true;
-        }
-    }
-    
-    // Need to erase counters that would affect other calls to filter_clusters_nlogn_helper
-    for (Tree::Node* root : *roots) {
-        root->parent->counter = 0;
-    }
-    
-    return roots;
+	// Stores rootsOfSubtrees
+	boost::unordered_set<Tree::Node*>* roots = new boost::unordered_set<Tree::Node*>({l_i});
+
+	// Stores incompatible nodes
+	boost::heap::fibonacci_heap<int>* incompatible = new boost::heap::fibonacci_heap<int>();
+
+	// Stores handles to nodes in the heap
+	std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>* heap_handles = new std::unordered_map<int, boost::heap::fibonacci_heap<int>::handle_type>;
+
+	while (curr != root_T_A) {
+		curr = curr->parent;
+		lower_boundary_counter++;
+
+		Tree::Node* prev_l_i = l_i;
+		for (Tree::Node* v : lower_boundaries[lower_boundary_counter]) {
+			l_i = T_B->get_node(lca(rmq_T_B->lca_prep, l_i->id, v->id));
+		}
+
+		// Add nodes from prev_l_i to l_i
+		// Include prev_l_i if incompatible with previous centroid path node
+		if (prev_l_i->counter == prev_l_i->get_children_num()) {
+			push_max_weight_into_heap(incompatible, heap_handles, prev_l_i, l_i, rmq_T_B);
+		} else {
+			push_max_weight_into_heap(incompatible, heap_handles, prev_l_i->children[0], l_i, rmq_T_B);
+		}
+
+		for (Tree::Node* v : lower_boundaries[lower_boundary_counter]) {
+			v->parent->counter++;
+			roots->insert(v);
+
+			Tree::Node* prev_v = v;
+			v = v->parent;
+
+			while (v->counter == v->get_children_num() && v != T_B->get_root()) {
+				v->parent->counter++;
+
+				roots->insert(v);
+				for (Tree::Node* child : v->children) {
+					roots->erase(child);
+					remove_from_heap_if_inside(incompatible, heap_handles, child);
+				}
+
+				prev_v = v;
+				v = v->parent;
+			}
+
+			// Add max weight from v until l_i to incompatible
+			if (v != l_i->parent) {
+				push_max_weight_into_heap(incompatible, heap_handles, prev_v, l_i, rmq_T_B);
+			}
+		}
+
+		int max_weight = heap_handles->size() == 0 ? 0 : incompatible->top();
+		if (curr->weight <= max_weight) {
+			to_del_T_A[curr->id] = true;
+		}
+	}
+
+	// Need to erase counters that would affect other calls to filter_clusters_nlogn_helper
+	for (Tree::Node* root : *roots) {
+		root->parent->counter = 0;
+	}
+
+	return roots;
 }
 
 void filter_clusters_nlogn(Tree* T_A, Tree* T_B, RMQ* rmq_T_B, bool* to_del_T_A) {
-    filter_clusters_nlogn_helper(T_A->get_root(), T_B, rmq_T_B, to_del_T_A);
-    
-    // Need to zero out counters since they might be left over from previous calls
-    for (int i = 0; i < T_A->get_nodes_num(); i++) {
-        T_A->get_node(i)->counter = 0;
-    }
+	filter_clusters_nlogn_helper(T_A->get_root(), T_B, rmq_T_B, to_del_T_A);
 
-    for (int i = 0; i < T_B->get_nodes_num(); i++) {
-        T_B->get_node(i)->counter = 0;
-    }
+	// Need to zero out counters since they might be left over from previous calls
+	for (int i = 0; i < T_A->get_nodes_num(); i++) {
+		T_A->get_node(i)->counter = 0;
+	}
+
+	for (int i = 0; i < T_B->get_nodes_num(); i++) {
+		T_B->get_node(i)->counter = 0;
+	}
 }
 
-Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
-    start = new int[Tree::get_taxas_num()*2];
+Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths, bool onlyw) {
+	start = new int[Tree::get_taxas_num()*2];
 	stop = new int[Tree::get_taxas_num()*2];
 	e = new int[Tree::get_taxas_num()];
 	m = new int[Tree::get_taxas_num()*2];
 	rsort_lists = new std::vector<Tree::Node*>[Tree::get_taxas_num()];
 
 	marked = new bool[Tree::get_taxas_num()*2];
-    std::fill(marked, marked+Tree::get_taxas_num()*2, false);
+	std::fill(marked, marked+Tree::get_taxas_num()*2, false);
 	bool* to_del_t = new bool[Tree::get_taxas_num()*2];
 	bool* to_del_ti = new bool[Tree::get_taxas_num()*2];
 
@@ -805,53 +805,55 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 		trees[i]->reorder();
 	}
 
-    calc_w_knlogn(trees);
-    
-    lca_t** lca_preps = new lca_t*[trees.size()];
-    for (size_t i = 0; i < trees.size(); i++) {
-        lca_preps[i] = lca_preprocess(trees[i]);
-    }
-    
+	calc_w_knlogn(trees);
+
+	if (onlyw) return NULL;
+
+	lca_t** lca_preps = new lca_t*[trees.size()];
+	for (size_t i = 0; i < trees.size(); i++) {
+		lca_preps[i] = lca_preprocess(trees[i]);
+	}
+
 	RMQ** rmqs = NULL;
 	if (centroid_paths) {
 		rmqs = new RMQ*[trees.size()];
 		for (size_t i = 0; i < trees.size(); i++) {
-            rmqs[i] = new RMQ(trees[i], lca_preps[i]);
+			rmqs[i] = new RMQ(trees[i], lca_preps[i]);
 		}
 	}
-    
+
 	Tree* T = new Tree(trees[0]);
 	for (size_t i = 1; i < trees.size(); i++) {
 		Tree* Ti = new Tree(trees[i]);
 		taxas_ranges_t* tr_Ti = build_taxas_ranges(Ti);
 
-        taxas_ranges_t* tr_T = build_taxas_ranges(T);
+		taxas_ranges_t* tr_T = build_taxas_ranges(T);
 		lca_t* lca_T = lca_preprocess(T);
-        
-        if (centroid_paths) {
-            T->reorder();
-            Ti->reorder();
-        }
+
+		if (centroid_paths) {
+			T->reorder();
+			Ti->reorder();
+		}
 
 		// filter clusters
 		std::fill(to_del_ti, to_del_ti+Ti->get_nodes_num(), false);
 		if (centroid_paths) {
-            RMQ* rmq_T = new RMQ(T, lca_T);
-            filter_clusters_nlogn(Ti, T, rmq_T, to_del_ti);
+			RMQ* rmq_T = new RMQ(T, lca_T);
+			filter_clusters_nlogn(Ti, T, rmq_T, to_del_ti);
 		} else {
 			filter_clusters_n2(Ti, T, tr_Ti, tr_T, lca_T, to_del_ti);
 		}
 
 		std::fill(to_del_t, to_del_t+T->get_nodes_num(), false);
 		if (centroid_paths) {
-            filter_clusters_nlogn(T, Ti, rmqs[i], to_del_t);
+			filter_clusters_nlogn(T, Ti, rmqs[i], to_del_t);
 		} else {
 			filter_clusters_n2(T, Ti, tr_T, tr_Ti, lca_preps[i], to_del_t);
 		}
 
 		Ti->delete_nodes(to_del_ti);
 		T->delete_nodes(to_del_t);
-        
+
 		delete lca_T;
 		delete tr_T;
 		delete tr_Ti;
@@ -860,7 +862,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 		tr_Ti = build_taxas_ranges(Ti);
 
 		merge_trees(Ti, T, tr_Ti, lca_T);
-        
+
 		delete lca_T;
 		delete tr_Ti;
 		delete Ti;
@@ -870,9 +872,9 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 	taxas_ranges_t* tr_T = build_taxas_ranges(T);
 	for (size_t i = 0; i < trees.size(); i++) {
 		if (centroid_paths) {
-            T->reorder();
-            trees[i]->reorder();
-            filter_clusters_nlogn(T, trees[i], rmqs[i], to_del_t);
+			T->reorder();
+			trees[i]->reorder();
+			filter_clusters_nlogn(T, trees[i], rmqs[i], to_del_t);
 		} else {
 			taxas_ranges_t* tr_Ti = build_taxas_ranges(trees[i]);
 			filter_clusters_n2(T, trees[i], tr_T, tr_Ti, lca_preps[i], to_del_t);
@@ -907,7 +909,7 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 		for (size_t i = 0; i < trees.size(); i++) {
 			delete rmqs[i];
 		}
-        delete[] rmqs;
+		delete[] rmqs;
 	}
 
 	return T;
