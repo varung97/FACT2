@@ -1,7 +1,5 @@
 import sys
 
-t1 = sys.argv[1]
-t2 = sys.argv[2]
 
 class Node:
     def __init__(self):
@@ -54,4 +52,5 @@ def from_newick(newick):
 
     return root
 
-print(str(from_newick(t1)) == str(from_newick(t2)))
+if __name__ == '__main__':
+    print(str(from_newick(sys.argv[1])) == str(from_newick(sys.argv[2])))

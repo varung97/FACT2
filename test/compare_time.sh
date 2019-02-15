@@ -1,3 +1,5 @@
+# compare_time.sh n k
+# Will run oldFACT and newFACT algorithm on same input and echo timing statistics
 echo "Gen trees:"
 time python3 gen_input_trees.py $1 $2 input_trees.nex
 echo
