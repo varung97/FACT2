@@ -4,7 +4,7 @@ echo "Gen trees:"
 time python3 gen_input_trees.py $1 $2 input_trees.nex
 echo
 echo "New FACT"
-time ./FACT++ freq input_trees.nex >> newoutput.txt
+time ./newFACT freq input_trees.nex >> newoutput.txt
 echo
 echo "Old FACT"
 time ./oldFACT freq input_trees.nex >> oldoutput.txt
