@@ -12,7 +12,8 @@
 #include <queue>
 #include <cassert>
 #include <boost/dynamic_bitset.hpp>
-#include <boost/unordered_set.hpp>
+// #include <boost/unordered_set.hpp>
+#include <unordered_set>
 #include <boost/heap/fibonacci_heap.hpp>
 
 #include "taxas_ranges.h"
@@ -667,16 +668,17 @@ void push_max_weight_into_heap(boost::heap::fibonacci_heap<int>* heap, std::unor
 }
 
 // Returns rootsOfSubtrees(\leafset(T_A))
-boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root_T_A, Tree* T_B, RMQ* rmq_T_B, bool* to_del_T_A) {
+std::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root_T_A, Tree* T_B, RMQ* rmq_T_B, bool* to_del_T_A) {
 	Tree::Node* curr = root_T_A;
-	std::vector<boost::unordered_set<Tree::Node*>> lower_boundaries = std::vector<boost::unordered_set<Tree::Node*>>();
+	std::vector<std::unordered_set<Tree::Node*>> lower_boundaries = std::vector<std::unordered_set<Tree::Node*>>();
 
 	// recursively call filter_clusters on side trees and build up lower boundaries
 	while (!curr->is_leaf()) {
-		boost::unordered_set<Tree::Node*> lower_boundary = boost::unordered_set<Tree::Node*>();
+		std::unordered_set<Tree::Node*> lower_boundary = std::unordered_set<Tree::Node*>();
 
 		for (int i = 1; i < curr->get_children_num(); i++) {
-			lower_boundary.merge(*filter_clusters_nlogn_helper(curr->children[i], T_B, rmq_T_B, to_del_T_A));
+			std::unordered_set<Tree::Node*>* child_roots = filter_clusters_nlogn_helper(curr->children[i], T_B, rmq_T_B, to_del_T_A);
+			lower_boundary.insert(child_roots->begin(), child_roots->end());
 		}
 
 		lower_boundaries.push_back(lower_boundary);
@@ -693,7 +695,7 @@ boost::unordered_set<Tree::Node*>* filter_clusters_nlogn_helper(Tree::Node* root
 	int lower_boundary_counter = -1; // Start at -1 since no lower boundary for leaf
 
 	// Stores rootsOfSubtrees
-	boost::unordered_set<Tree::Node*>* roots = new boost::unordered_set<Tree::Node*>({l_i});
+	std::unordered_set<Tree::Node*>* roots = new std::unordered_set<Tree::Node*>({l_i});
 
 	// Stores incompatible nodes
 	boost::heap::fibonacci_heap<int>* incompatible = new boost::heap::fibonacci_heap<int>();
