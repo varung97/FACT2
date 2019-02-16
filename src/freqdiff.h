@@ -11,9 +11,8 @@
 #include <iostream>
 #include <queue>
 #include <cassert>
-#include <boost/dynamic_bitset.hpp>
-// #include <boost/unordered_set.hpp>
 #include <unordered_set>
+#include <boost/dynamic_bitset.hpp>
 #include <boost/heap/fibonacci_heap.hpp>
 
 #include "taxas_ranges.h"
