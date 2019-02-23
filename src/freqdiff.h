@@ -488,51 +488,80 @@ Tree* restricted_subtree(Tree* tree, std::vector<int>* marked_taxa, std::vector<
 	return new_tree;
 }
 
-// Stably counting sorts elements of a vector along axis given by index
-std::vector<std::vector<int>> counting_sort(std::vector<std::vector<int>>& vector, int index) {
+
+struct label_pair_t {
+	int left_label, right_label, tree_index, node_id;
+
+	label_pair_t(int left_label, int right_label, int tree_index, int node_id) : left_label(left_label), right_label(right_label), tree_index(tree_index), node_id(node_id) {}
+};
+
+// Stably counting sorts elements of a vector by left_label
+void counting_sort_by_llabel(std::vector<label_pair_t>& vector) {
 	// Asummed to be non-negative
 	int max_label = 0;
 	for (int i = 0; i < vector.size(); i++) {
-		max_label = max_label > vector[i][index] ? max_label : vector[i][index];
+		max_label = max_label > vector[i].left_label ? max_label : vector[i].left_label;
 	}
 
 	// Each bucket will hold a list of elements
-	std::vector<std::vector<std::vector<int>>> buckets(max_label + 1);
+	std::vector<std::vector<label_pair_t>> buckets(max_label + 1);
 
 	// Bucketize
 	for (int i = 0; i < vector.size(); i++) {
-		buckets[vector[i][index]].push_back(vector[i]);
+		buckets[vector[i].left_label].push_back(vector[i]);
 	}
-
-	std::vector<std::vector<int>> sorted_vector;
 
 	// Reassemble
+	vector.clear();
 	for (int i = 0; i < buckets.size(); i++) {
 		for (int j = 0; j < buckets[i].size(); j++) {
-			sorted_vector.push_back(buckets[i][j]);
+			vector.push_back(buckets[i][j]);
 		}
 	}
+}
 
-	return sorted_vector;
+// Stably counting sorts elements of a vector by right_label
+void counting_sort_by_rlabel(std::vector<label_pair_t>& vector) {
+	// Asummed to be non-negative
+	int max_label = 0;
+	for (int i = 0; i < vector.size(); i++) {
+		max_label = max_label > vector[i].right_label ? max_label : vector[i].right_label;
+	}
+
+	// Each bucket will hold a list of elements
+	std::vector<std::vector<label_pair_t>> buckets(max_label + 1);
+
+	// Bucketize
+	for (int i = 0; i < vector.size(); i++) {
+		buckets[vector[i].right_label].push_back(vector[i]);
+	}
+
+	// Reassemble
+	vector.clear();
+	for (int i = 0; i < buckets.size(); i++) {
+		for (int j = 0; j < buckets[i].size(); j++) {
+			vector.push_back(buckets[i][j]);
+		}
+	}
 }
 
 // Labels tree using the labels of the associated nodes in the restricted subtrees
 void label_trees_using_assoc_nodes(std::vector<Tree*> trees, std::vector<std::vector<Tree::Node*>>& assoc_nodes_vector1, std::vector<std::vector<Tree::Node*>>& assoc_nodes_vector2) {
 	// A label pair looks like (left_label, right_label, tree_index, node_id)
-	std::vector<std::vector<int>> label_pairs;
+	std::vector<label_pair_t> label_pairs;
 
 	for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
 		for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
-			label_pairs.push_back({assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id});
+			label_pairs.push_back(label_pair_t(assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id));
 		}
 	}
 
 	// Stable counting sort along each of the labels
-	label_pairs = counting_sort(label_pairs, 1);
-	label_pairs = counting_sort(label_pairs, 0);
+	counting_sort_by_llabel(label_pairs);
+	counting_sort_by_rlabel(label_pairs);
 
 	// Identical nodes stores (tree_index, node_id) of identical nodes
-	std::vector<std::vector<int>> identical_nodes;
+	std::vector<std::pair<int, int>> identical_nodes;
 	int label = 1;
 
 	for (int i = 0; i <= label_pairs.size(); i++) {
@@ -540,12 +569,12 @@ void label_trees_using_assoc_nodes(std::vector<Tree*> trees, std::vector<std::ve
 		// Also do so if i == label_pairs.size() since there are no more pairs to be checked
 		if (i == label_pairs.size() ||
 			(!identical_nodes.empty() &&
-			 (label_pairs[i - 1][0] != label_pairs[i][0] || label_pairs[i - 1][1] != label_pairs[i][1])
+			 (label_pairs[i - 1].left_label != label_pairs[i].left_label || label_pairs[i - 1].right_label != label_pairs[i].right_label)
 			 )
 			) {
 
 			for (int j = 0; j < identical_nodes.size(); j++) {
-				trees[identical_nodes[j][0]]->get_node(identical_nodes[j][1])->label = label;
+				trees[identical_nodes[j].first]->get_node(identical_nodes[j].second)->label = label;
 			}
 
 			label++;
@@ -553,7 +582,7 @@ void label_trees_using_assoc_nodes(std::vector<Tree*> trees, std::vector<std::ve
 		}
 
 		if (i < label_pairs.size()) {
-			identical_nodes.push_back({label_pairs[i][2], label_pairs[i][3]});
+			identical_nodes.push_back({label_pairs[i].tree_index, label_pairs[i].node_id});
 		}
 	}
 }
@@ -609,35 +638,36 @@ void calc_w_knlogn(std::vector<Tree*>& trees) {
 	label_trees(trees);
 
 	// A label looks like (label, tree_index, node_id)
-	std::vector<std::vector<int>> labels;
+	// We use label_pair(label, label, tree_index, node_id) to represent it
+	std::vector<label_pair_t> labels;
 
 	for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
 		for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
-			labels.push_back({trees[tree_index]->get_node(node_id)->label, tree_index, node_id});
+			labels.push_back(label_pair_t(trees[tree_index]->get_node(node_id)->label, trees[tree_index]->get_node(node_id)->label, tree_index, node_id));
 		}
 	}
 
-	labels = counting_sort(labels, 0);
+	counting_sort_by_llabel(labels);
 
 	// Identical nodes stores (tree_index, node_id) of identical nodes
-	std::vector<std::vector<int>> identical_nodes;
+	std::vector<std::pair<int, int>> identical_nodes;
 
 	for (int i = 0; i <= labels.size(); i++) {
 		// If identical nodes is not empty and this label is different from the previous one then compute freq for the identical nodes
 		// Also do so if i == labels.size() since there are no more labels to be checked
 		if (i == labels.size() ||
-			(!identical_nodes.empty() && labels[i - 1][0] != labels[i][0])
+			(!identical_nodes.empty() && labels[i - 1].left_label != labels[i].left_label)
 			) {
 
 			for (int j = 0; j < identical_nodes.size(); j++) {
-				trees[identical_nodes[j][0]]->get_node(identical_nodes[j][1])->weight = identical_nodes.size();
+				trees[identical_nodes[j].first]->get_node(identical_nodes[j].second)->weight = identical_nodes.size();
 			}
 
 			identical_nodes.clear();
 		}
 
 		if (i < labels.size()) {
-			identical_nodes.push_back({labels[i][1], labels[i][2]});
+			identical_nodes.push_back({labels[i].tree_index, labels[i].node_id});
 		}
 	}
 }
