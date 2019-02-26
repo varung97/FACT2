@@ -2,7 +2,7 @@
  * freqdiff.h
  *
  *  Created on: 21 Oct 2015
- *      Author: Mesh
+ *	  Author: Mesh
  */
 
 #ifndef FREQDIFF_H_
@@ -20,6 +20,7 @@
 #include "utils.h"
 
 #include "Tree.h"
+#include "SimpleTree.h"
 #include "RMQ.h"
 
 struct node_bitvec_t {
@@ -53,7 +54,7 @@ int* levels,* ids;
 int* parent;
 bool* exists;
 Tree::Node** tree_nodes;
-Tree::Node empty_node = Tree::Node(-1, -1, 0);
+SimpleTree::SimpleNode empty_node = SimpleTree::SimpleNode(-1, -1, 0);
 
 
 // calculate cluster weights using kn^2 method
@@ -406,55 +407,46 @@ void merge_trees(Tree* tree1, Tree* tree2, taxas_ranges_t* t1_tr, lca_t* t2_lcas
 
 // Returns true if node has a marked leaf in subtree
 // Populates is_lca, true if node is lca of marked leaves
-bool mark_lcas(Tree::Node* node, std::vector<bool>* is_marked_leaf, std::vector<bool>* is_lca) {
-	if (is_marked_leaf->at(node->id)) {
-		is_lca->at(node->id) = true;
-		return true;
+bool mark_lcas(SimpleTree::SimpleNode* node, int marked_taxa_start, int marked_taxa_end, bool* is_lca) {
+	if (node->is_leaf() && marked_taxa_start <= node->taxa && node->taxa < marked_taxa_end) {
+		return is_lca[node->id] = true;
 	}
 
 	int num_children_with_marked_leaves = 0;
 
-	for (Tree::Node* child : node->children) {
-		if (mark_lcas(child, is_marked_leaf, is_lca)) {
-			num_children_with_marked_leaves++;
-		}
+	for (SimpleTree::SimpleNode* child : node->children) {
+		num_children_with_marked_leaves += mark_lcas(child, marked_taxa_start, marked_taxa_end, is_lca);
 	}
 
-	if (num_children_with_marked_leaves >= 2) {
-		is_lca->at(node->id) = true;
-	}
+	is_lca[node->id] = num_children_with_marked_leaves >= 2;
 
 	return num_children_with_marked_leaves > 0;
 }
 
 // Builds the subtree of tree restricted to some leaves given marked lcas
-Tree::Node* build_restricted_subtree(Tree* tree, Tree::Node* root, std::vector<bool>* is_lca, std::vector<Tree::Node*>* assoc_nodes) {
-	bool root_is_lca = is_lca->at(root->id);
+SimpleTree::SimpleNode* build_restricted_subtree(SimpleTree* tree, SimpleTree::SimpleNode* root, bool* is_lca, std::vector<SimpleTree::SimpleNode*>* assoc_nodes) {
+	bool root_is_lca = is_lca[root->id];
+	bool root_is_leaf = root->is_leaf();
 
-	if (root->is_leaf()) {
-		if (root_is_lca) {
-			// If root is a marked leaf then create new node
-			// Leaves are labelled with 1, this is only useful for trees with a single leaf
-			return assoc_nodes->at(root->id) = tree->add_node(root->taxa, 1);
-		} else {
-			// Else no subtree
-			return NULL;
-		}
+	if (root_is_leaf && root_is_lca) {
+		// If root is a marked leaf then create new node
+		// Leaves are labelled with 1, this is only useful for trees with a single leaf
+		return assoc_nodes->at(root->id) = tree->add_node(root->taxa, 1);
+	} else if (root_is_leaf){
+		// Else no subtree
+		return NULL;
 	}
 
 	// If there is only one child with non-NULL subtree, then we can just return that subtree
 	// If more than one child have non-NULL subtrees, then root is an lca and we need to connect each of these subtrees to the node
-	Tree::Node* node = root_is_lca ? tree->add_node() : NULL;
-	for (Tree::Node* child : root->children) {
-		Tree::Node* child_subtree = build_restricted_subtree(tree, child, is_lca, assoc_nodes);
+	SimpleTree::SimpleNode* node = root_is_lca ? tree->add_node() : NULL;
+	for (SimpleTree::SimpleNode* child : root->children) {
+		SimpleTree::SimpleNode* child_subtree = build_restricted_subtree(tree, child, is_lca, assoc_nodes);
 
-		if (child_subtree != NULL) {
-			if (root_is_lca) {
-				node->add_child(child_subtree);
-			} else {
-				assoc_nodes->at(root->id) = child_subtree;
-				return child_subtree;
-			}
+		if (child_subtree != NULL && root_is_lca) {
+			node->add_child(child_subtree);
+		} else if (child_subtree != NULL) {
+			return assoc_nodes->at(root->id) = child_subtree;
 		}
 	}
 
@@ -468,22 +460,17 @@ Tree::Node* build_restricted_subtree(Tree* tree, Tree::Node* root, std::vector<b
 
 // Builds the subtree of tree restricted to marked_leaves
 // Also populates the associated node for each node in tree, defined as shallowest descendant of the node in the restricted subtree
-Tree* restricted_subtree(Tree* tree, std::vector<int>* marked_taxa, std::vector<Tree::Node*>* assoc_nodes) {
-	if (marked_taxa->empty()) return NULL;
+SimpleTree* restricted_subtree(SimpleTree* tree, int marked_taxa_start, int marked_taxa_end, std::vector<SimpleTree::SimpleNode*>* assoc_nodes) {
+	if (marked_taxa_start == marked_taxa_end) return NULL;
 
-	std::vector<bool> is_lca(tree->get_nodes_num(), false);
-	std::vector<bool> is_marked_leaf(tree->get_nodes_num(), false);
-
-	for (int taxon : *marked_taxa) {
-		is_marked_leaf[tree->get_leaf(taxon)->id] = true;
-	}
-
-	mark_lcas(tree->get_root(), &is_marked_leaf, &is_lca);
+	bool* is_lca = new bool[tree->get_nodes_num()];
+	std::fill(is_lca, is_lca + tree->get_nodes_num(), false);
+	mark_lcas(tree->get_root(), marked_taxa_start, marked_taxa_end, is_lca);
 
 	// Build new tree with only lcas
-	Tree* new_tree = new Tree(std::count(is_lca.begin(), is_lca.end(), true));
-	Tree::Node* root = build_restricted_subtree(new_tree, tree->get_root(), &is_lca, assoc_nodes);
-	new_tree->fix_tree(root);
+	SimpleTree* new_tree = new SimpleTree(std::count(is_lca, is_lca + tree->get_nodes_num(), true));
+	SimpleTree::SimpleNode* root = build_restricted_subtree(new_tree, tree->get_root(), is_lca, assoc_nodes);
+	new_tree->set_root(root);
 
 	return new_tree;
 }
@@ -546,13 +533,15 @@ void counting_sort_by_rlabel(std::vector<label_pair_t>& vector) {
 }
 
 // Labels tree using the labels of the associated nodes in the restricted subtrees
-void label_trees_using_assoc_nodes(std::vector<Tree*> trees, std::vector<std::vector<Tree::Node*>>& assoc_nodes_vector1, std::vector<std::vector<Tree::Node*>>& assoc_nodes_vector2) {
+void label_trees_using_assoc_nodes(std::vector<SimpleTree*> trees, std::vector<std::vector<SimpleTree::SimpleNode*>>& assoc_nodes_vector1, std::vector<std::vector<SimpleTree::SimpleNode*>>& assoc_nodes_vector2, int total_num_nodes) {
 	// A label pair looks like (left_label, right_label, tree_index, node_id)
 	std::vector<label_pair_t> label_pairs;
+	label_pairs.reserve(total_num_nodes);
 
+	int index = 0;
 	for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
 		for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
-			label_pairs.push_back(label_pair_t(assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id));
+			label_pairs[index++] = label_pair_t(assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id);
 		}
 	}
 
@@ -588,50 +577,78 @@ void label_trees_using_assoc_nodes(std::vector<Tree*> trees, std::vector<std::ve
 }
 
 // Divide marked_leaves into 2 parts and recursively label
-void label_trees_helper(std::vector<Tree*>& trees, std::vector<int>& marked_taxa) {
-	if (marked_taxa.size() == 1) {
+void label_trees_helper(std::vector<SimpleTree*>& trees, int marked_taxa_start, int marked_taxa_end) {
+	if (marked_taxa_end - marked_taxa_start == 1) {
 		return;
 	}
 
-	std::vector<int> marked_taxa1, marked_taxa2;
+	int marked_taxa_mid = (marked_taxa_start + marked_taxa_end) / 2;
 
-	int i = 0;
-	for (; i < marked_taxa.size() / 2; i++) {
-		marked_taxa1.push_back(marked_taxa[i]);
-	}
-	for (; i < marked_taxa.size(); i++) {
-		marked_taxa2.push_back(marked_taxa[i]);
-	}
+	int num_trees = trees.size();
+	std::vector<SimpleTree*> trees1(num_trees), trees2(num_trees);
+	std::vector<std::vector<SimpleTree::SimpleNode*>> assoc_nodes_vector1(num_trees), assoc_nodes_vector2(num_trees);
 
-	std::vector<Tree*> trees1, trees2;
-	std::vector<std::vector<Tree::Node*>> assoc_nodes_vector1, assoc_nodes_vector2;
+	int total_num_nodes = 0;
+	for (int i = 0; i < num_trees; i++) {
+		SimpleTree* tree = trees[i];
+		int num_nodes = tree->get_nodes_num();
+		total_num_nodes += num_nodes;
 
-	for (Tree* tree : trees) {
 		// Default assoc node is the empty node, representing no marked taxa in leafset
-		std::vector<Tree::Node*> assoc_nodes1(tree->get_nodes_num(), &empty_node);
-		std::vector<Tree::Node*> assoc_nodes2(tree->get_nodes_num(), &empty_node);
+		std::vector<SimpleTree::SimpleNode*> assoc_nodes1(num_nodes, &empty_node);
+		std::vector<SimpleTree::SimpleNode*> assoc_nodes2(num_nodes, &empty_node);
 
-		trees1.push_back(restricted_subtree(tree, &marked_taxa1, &assoc_nodes1));
-		trees2.push_back(restricted_subtree(tree, &marked_taxa2, &assoc_nodes2));
+		trees1[i] = restricted_subtree(tree, marked_taxa_start, marked_taxa_mid, &assoc_nodes1);
+		trees2[i] = restricted_subtree(tree, marked_taxa_mid, marked_taxa_end, &assoc_nodes2);
 
-		assoc_nodes_vector1.push_back(assoc_nodes1);
-		assoc_nodes_vector2.push_back(assoc_nodes2);
+		assoc_nodes_vector1[i] = assoc_nodes1;
+		assoc_nodes_vector2[i] = assoc_nodes2;
 	}
 
-	label_trees_helper(trees1, marked_taxa1);
-	label_trees_helper(trees2, marked_taxa2);
+	label_trees_helper(trees1, marked_taxa_start, marked_taxa_mid);
+	label_trees_helper(trees2, marked_taxa_mid, marked_taxa_end);
 
-	label_trees_using_assoc_nodes(trees, assoc_nodes_vector1, assoc_nodes_vector2);
+	label_trees_using_assoc_nodes(trees, assoc_nodes_vector1, assoc_nodes_vector2, total_num_nodes);
+}
+
+SimpleTree::SimpleNode* make_simple_tree_helper(Tree::Node* root, SimpleTree* simple_tree, std::vector<SimpleTree::SimpleNode*>* node_map) {
+	SimpleTree::SimpleNode* simple_root = simple_tree->add_node(root->taxa);
+	node_map->at(root->id) = simple_root;
+
+	for (Tree::Node* child : root->children) {
+		simple_root->add_child(make_simple_tree_helper(child, simple_tree, node_map));
+	}
+
+	return simple_root;
+}
+
+SimpleTree* make_simple_tree(Tree* tree, std::vector<SimpleTree::SimpleNode*>* node_map) {
+	SimpleTree* simple_tree = new SimpleTree(tree->get_nodes_num());
+	SimpleTree::SimpleNode* simple_root = make_simple_tree_helper(tree->get_root(), simple_tree, node_map);
+	simple_tree->set_root(simple_root);
+	return simple_tree;
 }
 
 // Labels nodes in the trees, giving identical labels to nodes with identical leafsets
 void label_trees(std::vector<Tree*>& trees) {
-	std::vector<int> marked_taxa;
-	for (int i = 0; i < Tree::get_taxas_num(); i++) {
-		marked_taxa.push_back(i);
+	std::vector<SimpleTree*> simpletrees;
+	std::vector<std::vector<SimpleTree::SimpleNode*>> node_maps;
+	for (Tree* tree : trees) {
+		std::vector<SimpleTree::SimpleNode*> node_map(tree->get_nodes_num());
+		simpletrees.push_back(make_simple_tree(tree, &node_map));
+		node_maps.push_back(node_map);
 	}
 
-	label_trees_helper(trees, marked_taxa);
+	label_trees_helper(simpletrees, 0, Tree::get_taxas_num());
+
+	for (int i = 0; i < trees.size(); i++) {
+		Tree* tree = trees[i];
+		std::vector<SimpleTree::SimpleNode*> node_map = node_maps[i];
+
+		for (int j = 0; j < tree->get_nodes_num(); j++) {
+			tree->get_node(j)->label = node_map[j]->label;
+		}
+	}
 }
 
 void calc_w_knlogn(std::vector<Tree*>& trees) {
