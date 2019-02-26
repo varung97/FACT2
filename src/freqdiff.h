@@ -538,10 +538,9 @@ void label_trees_using_assoc_nodes(std::vector<SimpleTree*> trees, std::vector<s
 	std::vector<label_pair_t> label_pairs;
 	label_pairs.reserve(total_num_nodes);
 
-	int index = 0;
 	for (int tree_index = 0; tree_index < trees.size(); tree_index++) {
 		for (int node_id = 0; node_id < trees[tree_index]->get_nodes_num(); node_id++) {
-			label_pairs[index++] = label_pair_t(assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id);
+			label_pairs.push_back(label_pair_t(assoc_nodes_vector1[tree_index][node_id]->label, assoc_nodes_vector2[tree_index][node_id]->label, tree_index, node_id));
 		}
 	}
 
