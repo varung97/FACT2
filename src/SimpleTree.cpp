@@ -23,31 +23,18 @@ SimpleTree::SimpleNode* SimpleTree::get_node(int i) {
 	return nodes[i];
 }
 
-SimpleTree::SimpleNode* SimpleTree::get_root() {
-    return root;
-}
-
-void SimpleTree::set_root(SimpleTree::SimpleNode *in_root) {
-    root = in_root;
-}
-
 SimpleTree::SimpleNode* SimpleTree::add_node(int taxa, int label) {
 	SimpleTree::SimpleNode* newnode = new SimpleTree::SimpleNode(get_nodes_num(), taxa, label);
 	nodes.push_back(newnode);
 	return newnode;
 }
 
-SimpleTree::SimpleNode::SimpleNode(int id, int taxa, int label) : parent(NULL), id(id), taxa(taxa), label(label) {}
+SimpleTree::SimpleNode::SimpleNode(int id, int taxa, int label) : id(id), taxa(taxa), label(label) {}
 
 void SimpleTree::SimpleNode::add_child(SimpleNode* child) {
-	child->parent = this;
 	children.push_back(child);
 }
 
 bool SimpleTree::SimpleNode::is_leaf() {
 	return taxa != NONE;
-}
-
-bool SimpleTree::SimpleNode::is_root() {
-	return parent == NULL;
 }

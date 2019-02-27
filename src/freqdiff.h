@@ -465,12 +465,12 @@ SimpleTree* restricted_subtree(SimpleTree* tree, int marked_taxa_start, int mark
 
 	bool* is_lca = new bool[tree->get_nodes_num()];
 	std::fill(is_lca, is_lca + tree->get_nodes_num(), false);
-	mark_lcas(tree->get_root(), marked_taxa_start, marked_taxa_end, is_lca);
+	mark_lcas(tree->root, marked_taxa_start, marked_taxa_end, is_lca);
 
 	// Build new tree with only lcas
 	SimpleTree* new_tree = new SimpleTree(std::count(is_lca, is_lca + tree->get_nodes_num(), true));
-	SimpleTree::SimpleNode* root = build_restricted_subtree(new_tree, tree->get_root(), is_lca, assoc_nodes);
-	new_tree->set_root(root);
+	SimpleTree::SimpleNode* root = build_restricted_subtree(new_tree, tree->root, is_lca, assoc_nodes);
+	new_tree->root = root;
 
 	return new_tree;
 }
@@ -624,7 +624,7 @@ SimpleTree::SimpleNode* make_simple_tree_helper(Tree::Node* root, SimpleTree* si
 SimpleTree* make_simple_tree(Tree* tree, std::vector<SimpleTree::SimpleNode*>* node_map) {
 	SimpleTree* simple_tree = new SimpleTree(tree->get_nodes_num());
 	SimpleTree::SimpleNode* simple_root = make_simple_tree_helper(tree->get_root(), simple_tree, node_map);
-	simple_tree->set_root(simple_root);
+	simple_tree->root = simple_root;
 	return simple_tree;
 }
 
