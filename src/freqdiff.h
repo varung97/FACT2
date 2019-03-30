@@ -789,6 +789,10 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths, bool use_kn2_weig
 	clock_t end = clock();
 	std::cout << (double)(end - begin) / CLOCKS_PER_SEC << std::endl;
 
+	if (use_kn2_weighting) {
+		return NULL;
+	}
+
 	// Time filter_clusters
 	begin = clock();
 

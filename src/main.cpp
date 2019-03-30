@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 	}
 
 	if (consensus == NULL) {
-		std::cout << "No valid consensus found." << std::endl;
+		// std::cout << "No valid consensus found." << std::endl;
 	} else {
 		// std::cout << consensus->to_newick() << std::endl;
 	}
