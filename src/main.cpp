@@ -18,18 +18,18 @@ int main(int argc, char** argv) {
 	}
 
 	string algo(argv[1]);
-	bool weights_only = false;
-	if (argc > 3) {
-		string weights_only_arg(argv[3]);
-		weights_only = weights_only_arg == "onlyw";
-	}
+	// bool weights_only = false;
+	// if (argc > 3) {
+	// 	string weights_only_arg(argv[3]);
+	// 	weights_only = weights_only_arg == "onlyw";
+	// }
 
 	ifstream fin(argv[2]);
 	vector<Tree*> trees = parse_nex(fin);
 
 	Tree* consensus;
 	if (algo == "freq") {
-		consensus = freqdiff(trees, Tree::get_taxas_num() > 1, weights_only);
+		consensus = freqdiff(trees, Tree::get_taxas_num() > 1);
 	} else if (algo == "minrlc_exact") {
 		consensus = minRLC_exact(trees);
 	} else if (algo == "minilc_exact") {
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 	if (consensus == NULL) {
 		std::cout << "No valid consensus found." << std::endl;
 	} else {
-		std::cout << consensus->to_newick() << std::endl;
+		// std::cout << consensus->to_newick() << std::endl;
 	}
 
 	// for (Tree* tree : trees) {

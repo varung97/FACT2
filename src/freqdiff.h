@@ -818,7 +818,7 @@ void filter_clusters_nlogn(Tree* T_A, Tree* T_B, RMQ* rmq_T_B, bool* to_del_T_A)
 	}
 }
 
-Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths, bool onlyw) {
+Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 	start = new int[Tree::get_taxas_num()*2];
 	stop = new int[Tree::get_taxas_num()*2];
 	e = new int[Tree::get_taxas_num()];
@@ -852,9 +852,14 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths, bool onlyw) {
 		trees[i]->reorder();
 	}
 
+	// Time weighting
+	clock_t begin = clock();
 	calc_w_knlogn(trees);
+	clock_t end = clock();
+	std::cout << (double)(end - begin) / CLOCKS_PER_SEC << std::endl;
 
-	if (onlyw) return NULL;
+	// Time filter_clusters
+	begin = clock();
 
 	lca_t** lca_preps = new lca_t*[trees.size()];
 	for (size_t i = 0; i < trees.size(); i++) {
@@ -931,6 +936,10 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths, bool onlyw) {
 		delete trees[i];
 	}
 	T->delete_nodes(to_del_t);
+
+ 	end = clock();
+	std::cout << (double)(end - begin) / CLOCKS_PER_SEC << std::endl;
+
 	delete tr_T;
 
 	delete[] start;
