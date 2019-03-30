@@ -735,7 +735,7 @@ void merge_trees(Tree* tree1, Tree* tree2, taxas_ranges_t* t1_tr, lca_t* t2_lcas
 	delete t2_tr;
 }
 
-Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
+Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths, bool use_kn2_weighting) {
 
 	start = new int[Tree::get_taxas_num()*2];
 	stop = new int[Tree::get_taxas_num()*2];
@@ -781,7 +781,11 @@ Tree* freqdiff(std::vector<Tree*>& trees, bool centroid_paths) {
 
 	// Time weighting
 	clock_t begin = clock();
-	calc_w_kn2(trees);
+	if (use_kn2_weighting) {
+		calc_w_kn2(trees);
+	} else {
+		calc_w_k2n(trees);
+	}
 	clock_t end = clock();
 	std::cout << (double)(end - begin) / CLOCKS_PER_SEC << std::endl;
 

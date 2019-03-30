@@ -18,18 +18,17 @@ int main(int argc, char** argv) {
 	}
 
 	string algo(argv[1]);
-	// bool weights_only = false;
-	// if (argc > 3) {
-	// 	string weights_only_arg(argv[3]);
-	// 	weights_only = weights_only_arg == "onlyw";
-	// }
+	bool use_kn2_weighting = true;
+	if (argc > 3) {
+		use_kn2_weighting = argv[3][0] == '1';
+	}
 
 	ifstream fin(argv[2]);
 	vector<Tree*> trees = parse_nex(fin);
 
 	Tree* consensus;
 	if (algo == "freq") {
-		consensus = freqdiff(trees, Tree::get_taxas_num() > 1000);
+		consensus = freqdiff(trees, Tree::get_taxas_num() > 1000, use_kn2_weighting);
 	} else if (algo == "minrlc_exact") {
 		consensus = minRLC_exact(trees);
 	} else if (algo == "minilc_exact") {
