@@ -29,7 +29,7 @@ public:
 	Node* get_leaf(int taxa);
 	size_t get_leaves_num();
 
-	Tree::Node* add_node(int taxa = -1);
+	Tree::Node* add_node(int taxa = -1, int label = 0);
 	void delete_nodes(bool* to_delete);
 
 	// Applies lazy children deletions and resorts the nodes in topological order
@@ -63,11 +63,14 @@ public:
 	size_t pos_in_parent;
 	int id, secondary_id;
 	int taxa, weight;
+    int label;
+    int counter;
 	size_t size; // number of leaves in subtree
 	int depth;
 
-	Node(int id);// : parent(NULL), pos_in_parent(NONE), id(id), taxa(NONE), weight(0) {};
-	Node(int id, int taxa);// : parent(NULL), pos_in_parent(NONE), id(id), taxa(taxa), weight(0) {};
+	Node(int id);// : parent(NULL), pos_in_parent(NONE), id(id), taxa(NONE), label(NONE), weight(0) {};
+	Node(int id, int taxa);// : parent(NULL), pos_in_parent(NONE), id(id), taxa(taxa), label(NONE), weight(0) {};
+    Node(int id, int taxa, int label);// : parent(NULL), pos_in_parent(NONE), id(id), taxa(taxa), label(label), weight(0) {};
 
 	size_t get_children_num();
 

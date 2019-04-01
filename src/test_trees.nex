@@ -1,12 +1,12 @@
 BEGIN TAXA;
-    TAXLABELS 1 2 3 4 5;
+    TAXLABELS 0 1 2 3 4;
 END;
 
 BEGIN TREES;
-    blah;
-    blah;
-    TREE tree1 = ((1,2),(3,4,5));
-    TREE tree2 = ((1,(2,3)),(4,5));
-    TREE tree3 = ((((1,2),3),4),5);
-    TREE tree4 = (1,((2,3),(4,5)));
+    necessary_otherwise_doesnt_work;
+    necessary_otherwise_doesnt_work;
+    TREE tree0 = ((0,1),(2,3,4));
+    TREE tree1 = ((0,(1,2)),(3,4));
+    TREE tree2 = ((((0,1),2),3),4);
+    TREE tree3 = (0,((1,2),(3,4)));
 END;

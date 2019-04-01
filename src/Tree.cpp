@@ -110,8 +110,8 @@ size_t Tree::get_leaves_num() {
 	return leaves_num;
 }
 
-Tree::Node* Tree::add_node(int taxa) {
-	Tree::Node* newnode = new Tree::Node(get_nodes_num(), taxa);
+Tree::Node* Tree::add_node(int taxa, int label) {
+	Tree::Node* newnode = new Tree::Node(get_nodes_num(), taxa, label);
 	nodes.push_back(newnode);
 	if (taxa >= 0) {
 		// taxa_to_leaf.insert(taxa_to_leaf.begin()+taxa, newnode); TODO
@@ -227,8 +227,9 @@ int Tree::get_taxa_id(std::string& taxa) {
 	}
 }
 
-Tree::Node::Node(int id) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(NONE), weight(0), size(0), depth(0) {}
-Tree::Node::Node(int id, int taxa) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(taxa), weight(0), size(0), depth(0) {}
+Tree::Node::Node(int id) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(NONE), label(NONE), weight(0), size(0), depth(0), counter(0) {}
+Tree::Node::Node(int id, int taxa) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(taxa), label(NONE), weight(0), size(0), depth(0), counter(0) {}
+Tree::Node::Node(int id, int taxa, int label) : parent(NULL), pos_in_parent(NONE), id(id), secondary_id(id), taxa(taxa), label(label), weight(0), size(0), depth(0), counter(0) {}
 
 void Tree::Node::fix_children() {
 	size_t curr_pos = 0;
@@ -287,7 +288,7 @@ std::string Tree::Node::to_string() {
 		ss << taxa_names[taxa];
 	}
 //	if (!is_root()) {
-	ss << ", weight: " << weight << ", sec id: " << secondary_id;
+	ss << ", weight: " << weight << ", sec id: " << secondary_id << ", label: " << label;
 //	}
 	return ss.str();
 }
