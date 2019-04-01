@@ -2,11 +2,11 @@
 # Will run oldFACT and newFACT algorithm on same input and echo timing statistics
 # echo "Gen trees:"
 
-num_trials=3
+num_trials=20
 
 # Fixed k, varying n
 ks=(100)
-ns=(10000)
+ns=(500 1000 1500 2000 3000 4000 5000 7500 10000)
 
 # Varying k, fixed n
 # ks=(500 1000 1500 2000 3000 4000 5000 7500 10000)
