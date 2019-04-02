@@ -192,5 +192,7 @@ def gen_nex_file(trees, n, filename):
 if __name__ == '__main__':
     n = int(sys.argv[1])
     k = int(sys.argv[2])
-    sys.setrecursionlimit(5000)
-    gen_nex_file(scenario1(k, n), n, sys.argv[3])
+    scen = int(sys.argv[3])
+    sys.setrecursionlimit(10000)
+    trees = scenario1(k, n) if scen == 1 else scenario2(k, n)
+    gen_nex_file(trees, n, sys.argv[4])

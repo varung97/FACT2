@@ -2,24 +2,27 @@
 # Will run oldFACT and newFACT algorithm on same input and echo timing statistics
 # echo "Gen trees:"
 
-num_trials=20
+scen=1
+num_trials=5
 
 # Fixed k, varying n
-ks=(100)
-ns=(500 1000 1500 2000 3000 4000 5000 7500 10000)
+# ks=(100)
+# ns=(500 1000 1500 2000 3000 4000 5000 7500 10000)
 
 # Varying k, fixed n
-# ks=(500 1000 1500 2000 3000 4000 5000 7500 10000)
-# ns=(100)
+ks=(4000)
+ns=(1000)
 
 for k in "${ks[@]}"; do
 	for n in "${ns[@]}"; do
 		echo $n, $k
 		for i in $(seq 1 $num_trials); do
-			python3 gen_input_trees.py $n $k input_trees.nex
-			./newFACT freq input_trees.nex
-			./oldFACT freq input_trees.nex 1
-			./oldFACT freq input_trees.nex 2
+			if [ ! -f input_trees_${scen}_${n}_${k}_${i}.nex ]; then
+				python3 gen_input_trees.py $n $k $scen input_trees_${scen}_${n}_${k}_${i}.nex
+			fi
+			./newFACT freq input_trees_${scen}_${n}_${k}_${i}.nex
+			./oldFACT freq input_trees_${scen}_${n}_${k}_${i}.nex 1
+			./oldFACT freq input_trees_${scen}_${n}_${k}_${i}.nex 2
 		done
 	done
 done
