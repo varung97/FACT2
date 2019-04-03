@@ -38,25 +38,25 @@ def parse_and_draw(xlabel, scen_num):
         new_w, old_w_kn2, old_w_k2n = plt.plot(x, averaged_data[:, 2], 'r--', x, averaged_data[:, 4], 'b--', x, averaged_data[:, 5], 'g--')
         plt.xlabel(xlabel)
         plt.ylabel('Time / s')
-        plt.legend((new_w, old_w_kn2, old_w_k2n), ('knlogn', 'kn2', 'k2n'), loc='upper left')
+        plt.legend((new_w, old_w_kn2, old_w_k2n), ('$kn\,log\,n$', '$kn^2$', '$k^2n$'), loc='upper left')
         plt.savefig(graph_path + '_weighting.png', dpi=300, bbox_inches='tight')
 
         with open(latex_path + '_weighting.txt', 'w') as f:
             latex_data = [[str(int(x[i]))] + ['{:.2f}'.format(j) for j in row] for i, row in enumerate(averaged_data[:, (2, 4, 5)])]
-            f.write('\\\\\n\\hline\n'.join([' & '.join(row) for row in latex_data]))
-            f.write('\\\\\n\\hline\n')
+            f.write('\\\\\n'.join([' & '.join(row) for row in latex_data]))
+            f.write('\\\\\n')
 
         plt.figure(figsize=(7, 6))
         new_fc, old_fc = plt.plot(x, averaged_data[:, 3], 'r--', x, averaged_data[:, 6], 'b--')
         plt.xlabel(xlabel)
         plt.ylabel('Time / s')
-        plt.legend((new_fc, old_fc), ('nlogn', 'nlog2n'), loc='upper left')
+        plt.legend((new_fc, old_fc), ('$n\,log\,n$', '$n\,log^2n$'), loc='upper left')
         plt.savefig(graph_path + '_filter.png', dpi=300, bbox_inches='tight')
 
         with open(latex_path + '_filter.txt', 'w') as f:
             latex_data = [[str(int(x[i]))] + ['{:.2f}'.format(j) for j in row] for i, row in enumerate(averaged_data[:, (3, 6)])]
-            f.write('\\\\\n\\hline\n'.join([' & '.join(row) for row in latex_data]))
-            f.write('\\\\\n\\hline\n')
+            f.write('\\\\\n'.join([' & '.join(row) for row in latex_data]))
+            f.write('\\\\\n')
 
         # print(np.std(data_table, axis=0) / np.average(data_table, axis=0))
 
