@@ -13,6 +13,7 @@ num_trials=5
 ks=(4000)
 ns=(1000)
 
+echo $num_trials
 for k in "${ks[@]}"; do
 	for n in "${ns[@]}"; do
 		echo $n, $k
